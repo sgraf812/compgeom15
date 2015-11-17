@@ -1,0 +1,49 @@
+\documentclass{article}
+\usepackage{graphicx}
+\usepackage{dsfont}
+
+\begin{document}
+
+\title{Team 4 - Visibility Checks}
+\author{Wang, Mao, Sebastian G.}
+
+\maketitle
+
+\section{Problem Description}
+Given
+\begin{itemize}
+  \setlength{\itemsep}{-2pt}
+  \item A graph $G=(V,E)$ describing a landscape with obstacles modeled through simple polygons with $n$ vertices in total
+  \item A straight-line drawing of the landscape $\Gamma : V \rightarrow \mathds{R}^2$
+  \item The position $P \in \mathds{R}^2$ (\textit{Pacman})
+  \item The positions $(Q_i \in \mathds{R}^2)_{i \in \{1, ..., m\}}$ of $m$ ghosts
+  \item The visibility radius $r$
+\end{itemize}
+Find an efficient way to determine if $P$ is visible from $Q_i$ for each
+$i \in \{1, ..., m\}$, using ``reasonable'' preprocessing time
+(e.g. about a minute on typical inputs).
+\par\bigskip
+
+For positions $A, B \in \mathds{R}^2$, $A$ is \textit{visible} from $B$ iff
+$|\overline{AB}| \leq r$ and the segment $\overline{AB}$ has no intersection with any polygon in $\Gamma$.
+
+\section{Suggested Approach}
+
+We took inspiration in ray tracing and settled for a solution involving a spatial
+data structure like a BVH tree, quadtree or kd-tree. This is to bring down the
+asymptotic complexity of visibility tests to $\mathcal{O}(m\log n)$, but comes
+at the cost of having to build such that data structure at preprocessing time, which
+will happen in $\Omega(n\log n)$.
+\par\bigskip
+
+The outline of the algorithm is as follows:
+
+\begin{enumerate}
+  \setlength{\itemsep}{-2pt}
+  \item Triangulate the input polygons (or split them in any other kind of convex polygon) for efficient intersection tests
+  \item Build the spatial data structure on this (convex) polygon soup
+  \item Perform the $m$ visibility checks through intersection tests with the data structure in $\mathcal{O}(\log n)$ each
+\end{enumerate}
+
+
+\end{document}
