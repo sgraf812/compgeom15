@@ -1,4 +1,6 @@
-apply from: "https://dl.bintray.com/shemnon/javafx-gradle/8.1.1/javafx.plugin"
+apply from: 'https://dl.bintray.com/shemnon/javafx-gradle/8.1.1/javafx.plugin'
+apply plugin: 'idea'
+apply plugin: 'eclipse'
 
 repositories {
     mavenCentral()

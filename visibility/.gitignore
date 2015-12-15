@@ -3,6 +3,15 @@
 # IntelliJ stuff
 out/
 .idea/
+*.iml
+*.ipr
+*.iws
+
+# Eclipse
+.classpath
+.project
+.settings/
+
 
 # Mobile Tools for Java (J2ME)
 .mtj.tmp/
