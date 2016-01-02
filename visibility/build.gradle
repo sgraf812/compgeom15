@@ -5,3 +5,7 @@ apply plugin: 'eclipse'
 repositories {
     mavenCentral()
 }
+
+dependencies {
+    compile 'com.ximpleware:vtd-xml:2.11'
+}
