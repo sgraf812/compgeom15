@@ -40,7 +40,6 @@ public class Controller {
 
     private void setViewport(Viewport viewport) {
         this.viewport = viewport;
-        draw(canvas.getGraphicsContext2D());
     }
 
     public void loadOSMData(ActionEvent actionEvent) {
@@ -63,6 +62,10 @@ public class Controller {
     }
 
     public void addGhostOrPacman(MouseEvent event) {
+        if (canvas.getWidth() == 0 || canvas.getHeight() == 0) {
+            return;
+        }
+
         Point2D p = getViewport().screenToViewport(canvas.getBoundsInLocal(), event.getX(), event.getY());
         switch (event.getButton()) {
             case PRIMARY:
