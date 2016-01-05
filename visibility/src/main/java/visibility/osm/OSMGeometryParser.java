@@ -10,23 +10,40 @@ import java.util.Hashtable;
 import java.util.List;
 
 public class OSMGeometryParser implements GeometryParser {
+    private final AutoPilot BUILDING_WAY_PATH = new AutoPilot();
+    private final AutoPilot NODE_REF_PATH = new AutoPilot();
+    private final AutoPilot NODE_PATH = new AutoPilot();
+
+    public OSMGeometryParser() {
+        try {
+            NODE_PATH.selectXPath("/osm/node");
+            NODE_REF_PATH.selectXPath("nd/@ref");
+            BUILDING_WAY_PATH.selectXPath("/osm/way[./tag[@k='building']]");
+        } catch (XPathParseException e) {
+            e.printStackTrace();
+        }
+    }
+
     @Override
     public Iterable<Polygon> parseFile(String osmfile) {
         try {
             VTDGen vg = new VTDGen();
             vg.parseFile(osmfile, false);
             VTDNav vn = vg.getNav();
+            NODE_PATH.bind(vn); // This is important state for the later method calls!
+            NODE_REF_PATH.bind(vn);
+            BUILDING_WAY_PATH.bind(vn);
 
             // A hash from node ids to actual node positions
             Hashtable<Long, Point2D> nodes = new Hashtable<>();
 
             // The following call initializes accessed node refs in nodes to a dummy value.
-            List<List<Long>> wayRefs = extractWaysOfBuildings(vn, nodes);
-            // This will extract all referenced node refs, but no more.
-            extractAccessedNodes(vn, nodes);
+            List<List<Long>> buildingWays = extractWaysOfBuildings(vn, nodes);
+            // This will extract all referenced nodes, but no more.
+            extractReferencedNodes(vn, nodes);
             // Finally build the polygon list by following the node refs in wayRefs.
-            return buildPolygonList(nodes, wayRefs);
-        } catch ( XPathParseException | XPathEvalException | NavException e) {
+            return buildPolygonList(nodes, buildingWays);
+        } catch (XPathEvalException | NavException e) {
             e.printStackTrace();
             return new ArrayList<>();
         }
@@ -44,11 +61,10 @@ public class OSMGeometryParser implements GeometryParser {
         return polygons;
     }
 
-    private void extractAccessedNodes(VTDNav vn, Hashtable<Long, Point2D> nodes) throws XPathParseException, XPathEvalException, NavException {
-        AutoPilot nodePath = new AutoPilot(vn);
-        nodePath.selectXPath("/osm/node");
+    private void extractReferencedNodes(VTDNav vn, Hashtable<Long, Point2D> nodes) throws XPathEvalException, NavException {
+        vn.push();
 
-        for (int i = nodePath.evalXPath(); i != -1 ; i = nodePath.evalXPath()) {
+        for (int i = NODE_PATH.evalXPath(); i != -1 ; i = NODE_PATH.evalXPath()) {
             long id = Long.parseLong(vn.toString(vn.getAttrVal("id")));
             // By checking that we already referenced the id we can reduce memory pressure
             if (nodes.containsKey(id)) {
@@ -58,35 +74,42 @@ public class OSMGeometryParser implements GeometryParser {
                 ));
             }
         }
+
+        vn.pop();
     }
 
     private List<List<Long>> extractWaysOfBuildings(VTDNav vn, Hashtable<Long, Point2D> nodes)
-            throws XPathParseException, XPathEvalException, NavException {
+            throws XPathEvalException, NavException {
         vn.push();
 
-        final AutoPilot wayPath =  new AutoPilot(vn);
-        wayPath.selectXPath("/osm/way[./tag[@k='building']]");
-        final AutoPilot nodeRefPath = new AutoPilot(vn);
-        nodeRefPath.selectXPath("nd/@ref");
-
-        List<List<Long>> wayRefs = new ArrayList<>();
-        for (int i = wayPath.evalXPath(); i != -1 ; i = wayPath.evalXPath()) {
-            vn.push();
-
-            List<Long> refs = new ArrayList<>();
-            for (int j = nodeRefPath.evalXPath(); j != -1; j = nodeRefPath.evalXPath()) {
-                long ref = Long.parseLong(vn.toString(j + 1));
-                refs.add(ref);
-                nodes.put(ref, Point2D.ZERO); // a dummy value for now
-            }
-            wayRefs.add(refs);
-            nodeRefPath.resetXPath();
-
-            vn.pop();
+        List<List<Long>> ways = new ArrayList<>();
+        for (int i = BUILDING_WAY_PATH.evalXPath(); i != -1 ; i = BUILDING_WAY_PATH.evalXPath()) {
+            ways.add(extractNodeRefsOfWay(vn, nodes));
         }
 
         vn.pop();
 
-        return wayRefs;
+        BUILDING_WAY_PATH.resetXPath();
+
+        return ways;
+    }
+
+    /**
+     * Requires vn to point to a way element. Adds referenced node ids to nodes on the way.
+     */
+    private List<Long> extractNodeRefsOfWay(VTDNav vn, Hashtable<Long, Point2D> nodes) throws NavException, XPathEvalException {
+        vn.push();
+
+        List<Long> refs = new ArrayList<>();
+        for (int j = NODE_REF_PATH.evalXPath(); j != -1; j = NODE_REF_PATH.evalXPath()) {
+            long ref = Long.parseLong(vn.toString(j + 1));
+            refs.add(ref);
+            nodes.put(ref, Point2D.ZERO); // a dummy value for now
+        }
+        NODE_REF_PATH.resetXPath();
+
+        vn.pop();
+
+        return refs;
     }
 }
