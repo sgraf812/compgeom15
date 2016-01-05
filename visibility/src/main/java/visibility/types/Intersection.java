@@ -1,7 +1,7 @@
 package visibility.types;
 
-import com.sun.istack.internal.NotNull;
 import javafx.geometry.Point2D;
+import org.jetbrains.annotations.NotNull;
 
 public class Intersection {
     private final Point2D intersection;
