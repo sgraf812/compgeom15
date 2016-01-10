@@ -9,4 +9,5 @@ repositories {
 dependencies {
     compile 'com.ximpleware:vtd-xml:2.11'
     compile 'com.intellij:annotations:5.1'
+    compile 'org.jooq:jool:0.9.9'
 }
