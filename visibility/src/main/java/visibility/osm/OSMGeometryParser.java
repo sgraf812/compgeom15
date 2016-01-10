@@ -6,12 +6,17 @@ import visibility.types.GeometryParser;
 import visibility.types.Polygon;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.function.Function;
 
 public class OSMGeometryParser implements GeometryParser {
+    private final AutoPilot BUILDING_MULTIPOLYGON_PATH = new AutoPilot();
     private final AutoPilot BUILDING_WAY_PATH = new AutoPilot();
+    private final AutoPilot MEMBER_WAY_REF_PATH = new AutoPilot();
     private final AutoPilot NODE_REF_PATH = new AutoPilot();
+    private final AutoPilot WAY_PATH = new AutoPilot();
     private final AutoPilot NODE_PATH = new AutoPilot();
 
     public OSMGeometryParser() {
@@ -19,6 +24,9 @@ public class OSMGeometryParser implements GeometryParser {
             NODE_PATH.selectXPath("/osm/node");
             NODE_REF_PATH.selectXPath("nd/@ref");
             BUILDING_WAY_PATH.selectXPath("/osm/way[./tag[@k='building']]");
+            BUILDING_MULTIPOLYGON_PATH.selectXPath("/osm/relation[@type='multipolygon' and ./tag[@k='building']]");
+            MEMBER_WAY_REF_PATH.selectXPath("member[@type='way']/@ref");
+            WAY_PATH.selectXPath("/osm/way");
         } catch (XPathParseException e) {
             e.printStackTrace();
         }
@@ -33,6 +41,9 @@ public class OSMGeometryParser implements GeometryParser {
             NODE_PATH.bind(vn); // This is important state for the later method calls!
             NODE_REF_PATH.bind(vn);
             BUILDING_WAY_PATH.bind(vn);
+            BUILDING_MULTIPOLYGON_PATH.bind(vn);
+            MEMBER_WAY_REF_PATH.bind(vn);
+            WAY_PATH.bind(vn);
 
             // A hash from node ids to actual node positions
             Hashtable<Long, Point2D> nodes = new Hashtable<>();
@@ -84,7 +95,9 @@ public class OSMGeometryParser implements GeometryParser {
 
         List<List<Long>> ways = new ArrayList<>();
         for (int i = BUILDING_WAY_PATH.evalXPath(); i != -1 ; i = BUILDING_WAY_PATH.evalXPath()) {
-            ways.add(extractNodeRefsOfWay(vn, nodes));
+            // The lambda will put in a dummy value for each encountered node,
+            // so that we know later which nodes we need to parse.
+            ways.add(extractRefs(vn, NODE_REF_PATH, (Long ref) -> nodes.put(ref, Point2D.ZERO)));
         }
 
         vn.pop();
@@ -95,21 +108,38 @@ public class OSMGeometryParser implements GeometryParser {
     }
 
     /**
-     * Requires vn to point to a way element. Adds referenced node ids to nodes on the way.
+     * Requires vn to point to a sub element. From there it iterates over all matches of the ap.
+     * Calls onRef for visited nodes.
      */
-    private List<Long> extractNodeRefsOfWay(VTDNav vn, Hashtable<Long, Point2D> nodes) throws NavException, XPathEvalException {
+    private List<Long> extractRefs(VTDNav vn, AutoPilot ap, Function<Long, Object> onRef) throws NavException, XPathEvalException {
         vn.push();
 
         List<Long> refs = new ArrayList<>();
-        for (int j = NODE_REF_PATH.evalXPath(); j != -1; j = NODE_REF_PATH.evalXPath()) {
+        for (int j = ap.evalXPath(); j != -1; j = ap.evalXPath()) {
             long ref = Long.parseLong(vn.toString(j + 1));
             refs.add(ref);
-            nodes.put(ref, Point2D.ZERO); // a dummy value for now
+            onRef.apply(ref);
         }
-        NODE_REF_PATH.resetXPath();
+        ap.resetXPath();
 
         vn.pop();
 
         return refs;
+    }
+
+    private List<List<Long>> extractWayRefsOfMultipolygons(VTDNav vn, Hashtable<Long, List<Long>> ways) throws NavException, XPathEvalException {
+        vn.push();
+
+        List<List<Long>> multipolygons = new ArrayList<>();
+        for (int i = BUILDING_MULTIPOLYGON_PATH.evalXPath(); i != -1 ; i = BUILDING_MULTIPOLYGON_PATH.evalXPath()) {
+            // For an explanation for the lambda see extractWaysOfBuildings
+            multipolygons.add(extractRefs(vn, MEMBER_WAY_REF_PATH, (Long ref) -> ways.put(ref, Collections.emptyList())));
+        }
+
+        vn.pop();
+
+        BUILDING_WAY_PATH.resetXPath();
+
+        return multipolygons;
     }
 }
