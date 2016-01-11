@@ -1,5 +1,7 @@
 package visibility.types;
 
+import org.poly2tri.geometry.polygon.Polygon;
+
 /**
  * Potentially has to deal with holes.
  */

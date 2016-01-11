@@ -2,7 +2,6 @@ package visibility.gui;
 
 import javafx.event.ActionEvent;
 import javafx.geometry.Bounds;
-import javafx.geometry.Point2D;
 import javafx.geometry.Rectangle2D;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
@@ -11,8 +10,9 @@ import javafx.scene.paint.Color;
 import javafx.scene.shape.ArcType;
 import javafx.scene.shape.FillRule;
 import javafx.stage.FileChooser;
+import org.poly2tri.geometry.polygon.Polygon;
+import org.poly2tri.geometry.primitives.Point;
 import visibility.types.GeometryParser;
-import visibility.types.Polygon;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -23,8 +23,8 @@ public class Controller {
     private Viewport viewport;
     private GeometryParser parser;
     private Iterable<Polygon> geometry;
-    private Point2D pacman;
-    private final List<Point2D> ghosts = new ArrayList<>();
+    private Point pacman;
+    private final List<Point> ghosts = new ArrayList<>();
 
     public void initialize(GeometryParser parser) {
         this.parser = parser;
@@ -66,7 +66,7 @@ public class Controller {
             return;
         }
 
-        Point2D p = getViewport().screenToViewport(canvas.getBoundsInLocal(), event.getX(), event.getY());
+        Point p = getViewport().screenToViewport(canvas.getBoundsInLocal(), event.getX(), event.getY());
         switch (event.getButton()) {
             case PRIMARY:
                 // Place Pacman
@@ -91,13 +91,15 @@ public class Controller {
 
         for (Polygon poly : geometry) {
             // first we draw the outer face, then we subtract the holes
-            drawFace(gc, poly.getOuterFace());
+            drawFace(gc, poly.getPoints());
 
             // This will subtract the holes
             gc.setFillRule(FillRule.EVEN_ODD);
 
-            for (List<Point2D> hole : poly.getHoles()) {
-                drawFace(gc, hole);
+            if (poly.getHoles() != null) {
+                for (Polygon hole : poly.getHoles()) {
+                    drawFace(gc, hole.getPoints());
+                }
             }
         }
 
@@ -107,8 +109,8 @@ public class Controller {
 
     private void drawGhosts(GraphicsContext gc) {
         gc.setFill(Color.GREEN);
-        for (Point2D ghost : ghosts) {
-            Point2D p = viewport.viewportToScreen(canvas.getBoundsInLocal(), ghost);
+        for (Point ghost : ghosts) {
+            Point p = viewport.viewportToScreen(canvas.getBoundsInLocal(), ghost);
             gc.fillOval(p.getX() - 10, p.getY() - 10, 20, 20);
         }
     }
@@ -116,15 +118,15 @@ public class Controller {
     private void drawPacman(GraphicsContext gc) {
         if (pacman != null) {
             gc.setFill(Color.YELLOW);
-            Point2D p = viewport.viewportToScreen(canvas.getBoundsInLocal(), pacman);
+            Point p = viewport.viewportToScreen(canvas.getBoundsInLocal(), pacman);
             gc.fillArc(p.getX() - 10, p.getY() - 10, 20, 20, -45, 270, ArcType.ROUND);
         }
     }
 
-    private void drawFace(GraphicsContext gc, List<Point2D> f) {
+    private void drawFace(GraphicsContext gc, List<? extends Point> f) {
         gc.beginPath();
         for (int i = 0; i < f.size(); ++i) {
-            Point2D p = viewport.viewportToScreen(canvas.getBoundsInLocal(), f.get(i));
+            Point p = viewport.viewportToScreen(canvas.getBoundsInLocal(), f.get(i));
             if (i == 0) {
                 gc.moveTo(p.getX(), p.getY());
             } else {

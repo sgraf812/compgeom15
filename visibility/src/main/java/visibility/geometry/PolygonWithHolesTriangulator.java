@@ -1,6 +1,6 @@
 package visibility.geometry;
 
-import visibility.types.Polygon;
+import org.poly2tri.geometry.polygon.Polygon;
 import visibility.types.Triangle;
 import visibility.types.Triangulator;
 

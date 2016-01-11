@@ -10,4 +10,6 @@ dependencies {
     compile 'com.ximpleware:vtd-xml:2.11'
     compile 'com.intellij:annotations:5.1'
     compile 'org.jooq:jool:0.9.9'
+    compile 'org.orbisgis:poly2tri-core:0.1.2'
+    compile 'org.slf4j:slf4j-nop:1.7.13'
 }
