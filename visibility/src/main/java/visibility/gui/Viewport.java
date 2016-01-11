@@ -1,11 +1,9 @@
 package visibility.gui;
 
 import javafx.geometry.Bounds;
+import javafx.geometry.Point2D;
 import javafx.geometry.Rectangle2D;
-import org.poly2tri.geometry.polygon.Polygon;
-import org.poly2tri.geometry.primitives.Point;
-import org.poly2tri.triangulation.TriangulationPoint;
-import org.poly2tri.triangulation.point.TPoint;
+import visibility.types.Triangle;
 
 public class Viewport {
 
@@ -15,13 +13,13 @@ public class Viewport {
         this.viewport = viewport;
     }
 
-    static Viewport fromPolygons(Iterable<Polygon> polygons) {
+    static Viewport fromTriangles(Iterable<Triangle> triangles) {
         double minX = Double.MAX_VALUE;
         double minY = Double.MAX_VALUE;
         double maxX = -Double.MAX_VALUE;
         double maxY = -Double.MAX_VALUE;
-        for (Polygon p : polygons) {
-            for (Point vert : p.getPoints()) {
+        for (Triangle t : triangles) {
+            for (Point2D vert : new Point2D[]{t.a, t.b, t.c}) {
                 minX = Math.min(minX, vert.getX());
                 minY = Math.min(minY, vert.getY());
                 maxX = Math.max(maxX, vert.getX());
@@ -32,15 +30,15 @@ public class Viewport {
         return new Viewport(new Rectangle2D(minX, minY, maxX - minX, maxY - minY));
     }
 
-    public Point screenToViewport(Bounds screen, double x, double y) {
-        return new TPoint(
+    public Point2D screenToViewport(Bounds screen, double x, double y) {
+        return new Point2D(
                 viewport.getMinX() + viewport.getWidth()*(x - screen.getMinX())/(screen.getWidth()),
                 viewport.getMaxY() - viewport.getHeight()*(y - screen.getMinY())/(screen.getHeight())
         );
     }
 
-    public Point viewportToScreen(Bounds screen, Point p) {
-        return new TPoint(
+    public Point2D viewportToScreen(Bounds screen, Point2D p) {
+        return new Point2D(
                 screen.getMinX() + screen.getWidth()*(p.getX() - viewport.getMinX())/(viewport.getWidth()),
                 screen.getMaxY() - screen.getHeight()*(p.getY() - viewport.getMinY())/(viewport.getHeight())
         );

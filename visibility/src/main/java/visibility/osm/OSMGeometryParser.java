@@ -1,6 +1,7 @@
 package visibility.osm;
 
 import com.ximpleware.*;
+import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple;
 import org.jooq.lambda.tuple.Tuple2;
 import org.poly2tri.geometry.polygon.PolygonPoint;
@@ -91,13 +92,13 @@ public class OSMGeometryParser implements GeometryParser {
     private void extractReferencedNodes(VTDNav vn, Hashtable<Long, PolygonPoint> nodes) throws XPathEvalException, NavException {
         vn.push();
 
-        for (int i = NODE_PATH.evalXPath(); i != -1 ; i = NODE_PATH.evalXPath()) {
+        for (int i = NODE_PATH.evalXPath(); i != -1; i = NODE_PATH.evalXPath()) {
             long id = Long.parseLong(vn.toString(vn.getAttrVal("id")));
             // By checking that we already referenced the id we can reduce memory pressure
             if (nodes.containsKey(id)) {
                 nodes.put(id, new PolygonPoint(
-                        Double.parseDouble(vn.toString(vn.getAttrVal("lon"))),
-                        Double.parseDouble(vn.toString(vn.getAttrVal("lat")))
+                        Double.parseDouble(vn.toString(vn.getAttrVal("lon")))*(1 << 10),
+                        Double.parseDouble(vn.toString(vn.getAttrVal("lat")))*(1 << 10)
                 ));
             }
         }
@@ -108,7 +109,7 @@ public class OSMGeometryParser implements GeometryParser {
     private void extractReferencedWays(VTDNav vn, Hashtable<Long, List<Long>> ways, Hashtable<Long, PolygonPoint> nodes) throws XPathEvalException, NavException {
         vn.push();
 
-        for (int i = WAY_PATH.evalXPath(); i != -1 ; i = WAY_PATH.evalXPath()) {
+        for (int i = WAY_PATH.evalXPath(); i != -1; i = WAY_PATH.evalXPath()) {
             long id = Long.parseLong(vn.toString(vn.getAttrVal("id")));
             // By checking that we already referenced the id we can reduce memory pressure
             if (ways.containsKey(id)) {
@@ -124,7 +125,7 @@ public class OSMGeometryParser implements GeometryParser {
         vn.push();
 
         List<List<Long>> ways = new ArrayList<>();
-        for (int i = BUILDING_WAY_PATH.evalXPath(); i != -1 ; i = BUILDING_WAY_PATH.evalXPath()) {
+        for (int i = BUILDING_WAY_PATH.evalXPath(); i != -1; i = BUILDING_WAY_PATH.evalXPath()) {
             // The lambda will put in a dummy value for each encountered node,
             // so that we know later which nodes we need to parse.
             ways.add(extractNodeRefs(vn, nodes));
@@ -160,7 +161,7 @@ public class OSMGeometryParser implements GeometryParser {
         vn.push();
 
         List<List<Tuple2<WayRole, Long>>> multipolygons = new ArrayList<>();
-        for (int i = BUILDING_MULTIPOLYGON_PATH.evalXPath(); i != -1 ; i = BUILDING_MULTIPOLYGON_PATH.evalXPath()) {
+        for (int i = BUILDING_MULTIPOLYGON_PATH.evalXPath(); i != -1; i = BUILDING_MULTIPOLYGON_PATH.evalXPath()) {
             // For an explanation for the lambda see extractWaysOfBuildings
             multipolygons.add(extractWayRefs(vn, ways));
         }
@@ -205,8 +206,29 @@ public class OSMGeometryParser implements GeometryParser {
     }
 
     private void buildMultipolygons(Hashtable<Long, PolygonPoint> nodes, Hashtable<Long, List<Long>> multipolygonWays, List<List<Tuple2<WayRole, Long>>> multipolygonWayRefs, List<Polygon> polygons) {
-        for (List<Tuple2<WayRole, Long>> waysOfPoly: multipolygonWayRefs) {
-            List<PolygonPoint> outer = new ArrayList<>();
+        for (List<Tuple2<WayRole, Long>> waysOfPoly : multipolygonWayRefs) {
+            Polygon outer = null;
+
+            try {
+                // I know this not how should assemble them, but parsing OSM wasn't our objective.
+                for (Tuple2<WayRole, Long> way : waysOfPoly) {
+                    WayRole role = way.v1;
+                    long wayRef = way.v2;
+                    List<Long> nodeRefs = multipolygonWays.get(wayRef);
+                    Polygon p = new Polygon(Seq.seq(nodeRefs).map(nodes::get).toList());
+                    if (role == WayRole.OUTER && outer == null) {
+                        outer = p;
+                    } else if (role == WayRole.INNER) {
+                        outer.addHole(p);
+                    }
+                }
+            } catch (Exception ex) {
+                System.out.println("Failed to build a certain multipolygon");
+            }
+
+            if (outer != null) {
+                polygons.add(outer);
+            }
         }
     }
 
