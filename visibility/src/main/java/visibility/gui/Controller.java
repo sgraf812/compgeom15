@@ -10,9 +10,6 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.ArcType;
 import javafx.stage.FileChooser;
-import org.jooq.lambda.Seq;
-import org.poly2tri.Poly2Tri;
-import org.poly2tri.geometry.polygon.Polygon;
 import visibility.types.GeometryParser;
 import visibility.types.Triangle;
 
@@ -50,18 +47,7 @@ public class Controller {
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("OSM Files", "*.xml", "*.osm"));
         File selectedFile = chooser.showOpenDialog(canvas.getScene().getWindow());
         if (selectedFile != null) {
-            Iterable<Polygon> polys = parser.parseFile(selectedFile.getAbsolutePath());
-            geometry = Seq.seq(polys).flatMap(p -> {
-                try {
-                    Poly2Tri.triangulate(p);
-                    return Seq.seq(p.getTriangles()).map(Triangle::fromDelaunayTriangle);
-                } catch (Exception ex) {
-                    // There was something wrong with parsed polygon data...
-                    // Probably wasn't simple/the nodes were in the wrong order
-                    // Whatever, we can just ignore this.
-                    return Seq.empty();
-                }
-            }).toList();
+            geometry = parser.parseFile(selectedFile.getAbsolutePath());
         }
 
         setViewport(Viewport.fromTriangles(geometry));

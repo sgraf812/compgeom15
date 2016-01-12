@@ -4,14 +4,19 @@ import com.ximpleware.*;
 import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple;
 import org.jooq.lambda.tuple.Tuple2;
+import org.poly2tri.Poly2Tri;
 import org.poly2tri.geometry.polygon.PolygonPoint;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import visibility.types.GeometryParser;
 import org.poly2tri.geometry.polygon.Polygon;
+import visibility.types.Triangle;
 
 import java.util.*;
 
 public class OSMGeometryParser implements GeometryParser {
     private static final PolygonPoint DUMMY_POINT = new PolygonPoint(0, 0);
+    private static final Logger LOG = LoggerFactory.getLogger(OSMGeometryParser.class);
     private final AutoPilot BUILDING_MULTIPOLYGON_PATH = new AutoPilot();
     private final AutoPilot BUILDING_WAY_PATH = new AutoPilot();
     private final AutoPilot MEMBER_WAY_PATH = new AutoPilot();
@@ -33,7 +38,7 @@ public class OSMGeometryParser implements GeometryParser {
     }
 
     @Override
-    public Iterable<Polygon> parseFile(String osmfile) {
+    public List<Triangle> parseFile(String osmfile) {
         try {
             VTDGen vg = new VTDGen();
             vg.parseFile(osmfile, false);
@@ -60,33 +65,35 @@ public class OSMGeometryParser implements GeometryParser {
             // This will extract all referenced nodes, but no more.
             extractReferencedNodes(vn, nodes);
             // Finally build the polygon list by following the node refs in wayRefs.
-            return buildPolygonList(nodes, buildingWays, multipolygonWays, multipolygonWayRefs);
+            // Triangulate each polygon and return the flattened list of triangles.
+            // This way, poly2tri's types will not leak out of this class and we operate
+            // on triangles anyway.
+            return buildPolygons(nodes, buildingWays, multipolygonWays, multipolygonWayRefs).flatMap(p -> {
+                Poly2Tri.triangulate(p);
+                return Seq.seq(p.getTriangles()).map(Triangle::fromDelaunayTriangle);
+            }).toList();
         } catch (XPathEvalException | NavException e) {
             e.printStackTrace();
             return new ArrayList<>();
         }
     }
 
-    private Iterable<Polygon> buildPolygonList(Hashtable<Long, PolygonPoint> nodes, List<List<Long>> buildingWays, Hashtable<Long, List<Long>> multipolygonWays, List<List<Tuple2<WayRole, Long>>> multipolygonWayRefs) {
-        ArrayList<Polygon> polygons = new ArrayList<>();
-
+    private Seq<Polygon> buildPolygons(Hashtable<Long, PolygonPoint> nodes, List<List<Long>> buildingWays, Hashtable<Long, List<Long>> multipolygonWays, List<List<Tuple2<WayRole, Long>>> multipolygonWayRefs) {
         // first add the building ways
-        buildBuildingPolygonsWithoutHoles(nodes, buildingWays, polygons);
-
+        Seq<Polygon> buildings = buildBuildingPolygonsWithoutHoles(nodes, buildingWays);
         // now add the multipolygon ways, that's more involved
-        buildMultipolygons(nodes, multipolygonWays, multipolygonWayRefs, polygons);
+        Seq<Polygon> multis = buildMultipolygons(nodes, multipolygonWays, multipolygonWayRefs);
 
-        return polygons;
+        return buildings.concat(multis);
     }
 
-    private void buildBuildingPolygonsWithoutHoles(Hashtable<Long, PolygonPoint> nodes, List<List<Long>> buildingWays, ArrayList<Polygon> polygons) {
-        for (List<Long> way : buildingWays) {
-            List<PolygonPoint> outerFace = new ArrayList<>(way.size());
-            for (Long ref : way) {
-                outerFace.add(nodes.get(ref));
-            }
-            polygons.add(new Polygon(outerFace));
-        }
+    private Seq<Polygon> buildBuildingPolygonsWithoutHoles(Hashtable<Long, PolygonPoint> nodes, List<List<Long>> buildingWays) {
+        return Seq.seq(buildingWays).map(way -> buildPolygonFromWayRefs(way, nodes));
+    }
+
+    private static Polygon buildPolygonFromWayRefs(List<Long> way, Hashtable<Long, PolygonPoint> nodes) {
+        // We have to copy the points in order not to alias mutable data.
+        return new Polygon(Seq.seq(way).map(nodes::get).map(OSMGeometryParser::copyPoint).toList());
     }
 
     private void extractReferencedNodes(VTDNav vn, Hashtable<Long, PolygonPoint> nodes) throws XPathEvalException, NavException {
@@ -102,6 +109,9 @@ public class OSMGeometryParser implements GeometryParser {
                 ));
             }
         }
+
+        // Make sure we have all referenced nodes extracted
+        assert !nodes.containsValue(DUMMY_POINT);
 
         vn.pop();
     }
@@ -205,31 +215,31 @@ public class OSMGeometryParser implements GeometryParser {
         return refs;
     }
 
-    private void buildMultipolygons(Hashtable<Long, PolygonPoint> nodes, Hashtable<Long, List<Long>> multipolygonWays, List<List<Tuple2<WayRole, Long>>> multipolygonWayRefs, List<Polygon> polygons) {
-        for (List<Tuple2<WayRole, Long>> waysOfPoly : multipolygonWayRefs) {
+    private Seq<Polygon> buildMultipolygons(Hashtable<Long, PolygonPoint> nodes, Hashtable<Long, List<Long>> multipolygonWays, List<List<Tuple2<WayRole, Long>>> multipolygonWayRefs) {
+        return Seq.seq(multipolygonWayRefs).map(waysOfPoly -> {
             Polygon outer = null;
-
             try {
                 // I know this not how should assemble them, but parsing OSM wasn't our objective.
+                List<Polygon> holes = new ArrayList<>();
                 for (Tuple2<WayRole, Long> way : waysOfPoly) {
                     WayRole role = way.v1;
                     long wayRef = way.v2;
                     List<Long> nodeRefs = multipolygonWays.get(wayRef);
-                    Polygon p = new Polygon(Seq.seq(nodeRefs).map(nodes::get).toList());
+                    Polygon p = buildPolygonFromWayRefs(nodeRefs, nodes);
                     if (role == WayRole.OUTER && outer == null) {
                         outer = p;
                     } else if (role == WayRole.INNER) {
-                        outer.addHole(p);
+                        holes.add(p);
+                    } else {
+                        LOG.warn("Could not process another outer way");
                     }
                 }
+                holes.forEach(outer::addHole);
             } catch (Exception ex) {
                 System.out.println("Failed to build a certain multipolygon");
             }
-
-            if (outer != null) {
-                polygons.add(outer);
-            }
-        }
+            return outer;
+        }).filter(p -> p != null);
     }
 
     /**
@@ -240,5 +250,12 @@ public class OSMGeometryParser implements GeometryParser {
     private enum WayRole {
         INNER,
         OUTER
+    }
+
+    private static PolygonPoint copyPoint(PolygonPoint p) {
+        // Words cannot express how much I hate mutable data types.
+        // I went through hell to find out why triangulation failed.
+        // We have to copy the points from nodes or we alias them.
+        return new PolygonPoint(p.getX(), p.getY());
     }
 }

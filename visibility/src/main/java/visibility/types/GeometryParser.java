@@ -1,7 +1,7 @@
 package visibility.types;
 
-import org.poly2tri.geometry.polygon.Polygon;
+import java.util.List;
 
 public interface GeometryParser {
-    Iterable<Polygon> parseFile(String file);
+    List<Triangle> parseFile(String file);
 }
