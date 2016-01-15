@@ -10,14 +10,14 @@ public class Segment {
     private final Point2D end;
     private final Point2D dir;
     private final Point2D orth;
-    private final double invDistance;
+    private final double distance;
 
     public Segment(@NotNull Point2D start, @NotNull Point2D end) {
         this.start = start;
         this.end = end;
-        this.dir = end.subtract(start);
+        this.dir = end.subtract(start).normalize();
         this.orth = new Point2D(-dir.getY(), dir.getX());
-        this.invDistance = 1.0/start.distance(end);
+        this.distance = start.distance(end);
     }
 
     @NotNull
@@ -42,7 +42,7 @@ public class Segment {
         final double ob = rb.dotProduct(this.orth);
         final double oc = rc.dotProduct(this.orth);
 
-        // If the signs of any of the d* differ (or a zero), we have an intersection at an edge.
+        // If the signs of any of the o* differ (or are zero), we have an intersection at an edge.
         // That is the case only if the product is non-positive.
         final boolean ab = oa * ob <= 0;
         final boolean bc = ob * oc <= 0;
@@ -94,9 +94,13 @@ public class Segment {
     private Intersection triangleEdgeIntersected(double oa, double da, double ob, double db) {
         // Interpolate based on the orthogonal projection
         //
-        final double s = (0-oa)/(ob - oa);
-        final double distance = (da + s*(db - da)) * this.invDistance;
-        return new Intersection(this.start.add(this.dir.multiply(distance)), distance);
+        final double s = (0 - oa) / (ob - oa);
+        final double distance = da + s * (db - da);
+        if (distance >= 0 && distance < this.distance) {
+            return new Intersection(this.start.add(this.dir.multiply(distance)), distance);
+        } else {
+            return null;
+        }
     }
 
     private Intersection exactlyOneIntersectionIsImpossible() {

@@ -130,7 +130,7 @@ public class Controller {
     }
 
     private void drawGhosts(GraphicsContext gc) {
-        gc.setFill(Color.GREEN);
+        gc.setFill(Color.PURPLE);
         for (Point2D ghost : ghosts) {
             Point2D p = viewport.viewportToScreen(canvas.getBoundsInLocal(), ghost);
             gc.fillOval(p.getX() - 10, p.getY() - 10, 20, 20);
