@@ -10,20 +10,29 @@ import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.ArcType;
 import javafx.stage.FileChooser;
+import org.jooq.lambda.Seq;
+import org.jooq.lambda.tuple.Tuple2;
+import visibility.algorithm.NaiveIntersection;
 import visibility.types.GeometryParser;
+import visibility.types.Segment;
+import visibility.types.SpatialDataStructure;
 import visibility.types.Triangle;
 
 import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.jooq.lambda.tuple.Tuple.tuple;
+
 public class Controller {
     public Canvas canvas;
     private Viewport viewport;
     private GeometryParser parser;
     private List<Triangle> geometry;
+    private SpatialDataStructure dataStructure;
     private Point2D pacman;
     private final List<Point2D> ghosts = new ArrayList<>();
+    private final List<Tuple2<Segment, Color>> rays = new ArrayList<>();
 
     public void initialize(GeometryParser parser) {
         this.parser = parser;
@@ -48,6 +57,7 @@ public class Controller {
         File selectedFile = chooser.showOpenDialog(canvas.getScene().getWindow());
         if (selectedFile != null) {
             geometry = parser.parseFile(selectedFile.getAbsolutePath());
+            dataStructure = NaiveIntersection.fromTriangles(geometry);
         }
 
         setViewport(Viewport.fromTriangles(geometry));
@@ -57,6 +67,7 @@ public class Controller {
     public void clear(ActionEvent actionEvent) {
         pacman = null;
         ghosts.clear();
+        rays.clear();
         draw(canvas.getGraphicsContext2D());
     }
 
@@ -78,6 +89,19 @@ public class Controller {
             default:
                 return;
         }
+
+        // Now recalculate all visibility checks
+        rays.clear();
+        if (pacman != null) {
+            rays.addAll(Seq.seq(ghosts).map(g -> {
+                Segment ray = new Segment(g, pacman);
+                Point2D intersection = dataStructure.intersectWith(new Segment(g, pacman));
+                return intersection == null
+                        ? tuple(ray, Color.GREEN)
+                        : tuple(new Segment(g, intersection), Color.RED);
+            }).toList());
+        }
+
         draw(canvas.getGraphicsContext2D());
     }
 
@@ -90,8 +114,19 @@ public class Controller {
 
         geometry.forEach(t -> drawTriangle(gc, t));
 
+        drawRays(gc);
         drawPacman(gc);
         drawGhosts(gc);
+    }
+
+    private void drawRays(GraphicsContext gc) {
+        for (Tuple2<Segment, Color> ray : rays) {
+            Point2D start = viewport.viewportToScreen(canvas.getBoundsInLocal(), ray.v1.getStart());
+            Point2D end = viewport.viewportToScreen(canvas.getBoundsInLocal(), ray.v1.getEnd());
+
+            gc.setStroke(ray.v2);
+            gc.strokeLine(start.getX(), start.getY(), end.getX(), end.getY());
+        }
     }
 
     private void drawGhosts(GraphicsContext gc) {
