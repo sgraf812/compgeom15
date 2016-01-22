@@ -32,7 +32,7 @@
     </BorderPane>
     <BorderPane>
       <center>
-        <Canvas fx:id="canvas" onMouseClicked="#addGhostOrPacman" height="600" width="800" BorderPane.alignment="CENTER">
+        <Canvas fx:id="canvas" onMouseClicked="#addGhostOrPacman" onMouseDragged="#movePacman" height="600" width="800" BorderPane.alignment="CENTER">
         </Canvas>
       </center>
     </BorderPane>

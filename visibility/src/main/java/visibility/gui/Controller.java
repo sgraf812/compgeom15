@@ -1,11 +1,14 @@
 package visibility.gui;
 
 import javafx.event.ActionEvent;
+import javafx.event.Event;
 import javafx.geometry.Bounds;
 import javafx.geometry.Point2D;
 import javafx.geometry.Rectangle2D;
+import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
+import javafx.scene.image.WritableImage;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.ArcType;
@@ -33,6 +36,7 @@ public class Controller {
     private Point2D pacman;
     private final List<Point2D> ghosts = new ArrayList<>();
     private final List<Tuple2<Segment, Color>> rays = new ArrayList<>();
+    private WritableImage snapshot;
 
     public void initialize(GeometryParser parser) {
         this.parser = parser;
@@ -60,6 +64,7 @@ public class Controller {
             dataStructure = NaiveIntersection.fromTriangles(geometry);
         }
 
+        snapshot = null;
         setViewport(Viewport.fromTriangles(geometry));
         draw(canvas.getGraphicsContext2D());
     }
@@ -106,13 +111,19 @@ public class Controller {
     }
 
     private void draw(GraphicsContext gc) {
-        gc.setFill(Color.LIGHTGRAY);
-        gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
+        if (snapshot == null) {
+            gc.setFill(Color.LIGHTGRAY);
+            gc.fillRect(0, 0, canvas.getWidth(), canvas.getHeight());
 
 
-        gc.setFill(Color.CORNFLOWERBLUE);
+            gc.setFill(Color.CORNFLOWERBLUE);
 
-        geometry.forEach(t -> drawTriangle(gc, t));
+            geometry.forEach(t -> drawTriangle(gc, t));
+
+            snapshot = canvas.snapshot(null, null);
+        } else {
+            gc.drawImage(snapshot, 0, 0);
+        }
 
         drawRays(gc);
         drawPacman(gc);
@@ -130,10 +141,25 @@ public class Controller {
     }
 
     private void drawGhosts(GraphicsContext gc) {
-        gc.setFill(Color.PURPLE);
+        Point2D focus = pacman == null ? null : viewport.viewportToScreen(canvas.getBoundsInLocal(), pacman);
         for (Point2D ghost : ghosts) {
             Point2D p = viewport.viewportToScreen(canvas.getBoundsInLocal(), ghost);
+            gc.setFill(Color.PURPLE);
             gc.fillOval(p.getX() - 10, p.getY() - 10, 20, 20);
+            gc.setFill(Color.WHITE);
+            gc.fillOval(p.getX() - 8, p.getY() - 5, 6, 6);
+            gc.fillOval(p.getX() + 2, p.getY() - 5, 6, 6);
+
+            gc.setFill(Color.BLACK);
+            Point2D rightEye = p.add(-5, -2);
+            Point2D leftEye = p.add(5, -2);
+            if (focus != null) {
+                // This will make the ghosts leer into pacman's direction
+                rightEye = rightEye.add(focus.subtract(rightEye).normalize());
+                leftEye = leftEye.add(focus.subtract(leftEye).normalize());
+            }
+            gc.fillOval(leftEye.getX()-1, leftEye.getY()-1, 2, 2);
+            gc.fillOval(rightEye.getX()-1, rightEye.getY()-1, 2, 2);
         }
     }
 
@@ -141,7 +167,11 @@ public class Controller {
         if (pacman != null) {
             gc.setFill(Color.YELLOW);
             Point2D p = viewport.viewportToScreen(canvas.getBoundsInLocal(), pacman);
-            gc.fillArc(p.getX() - 10, p.getY() - 10, 20, 20, -45, 270, ArcType.ROUND);
+            gc.fillArc(p.getX() - 10, p.getY() - 10, 20, 20, 30, 300, ArcType.ROUND);
+            gc.setFill(Color.WHITE);
+            gc.fillOval(p.getX() - 5, p.getY() - 8, 6, 6);
+            gc.setFill(Color.BLACK);
+            gc.fillOval(p.getX() - 2, p.getY() - 6, 2, 2);
         }
     }
 
@@ -160,4 +190,9 @@ public class Controller {
     }
 
 
+    public void movePacman(MouseEvent event) {
+        if (event.isPrimaryButtonDown()) {
+            addGhostOrPacman(event);
+        }
+    }
 }
