@@ -33,7 +33,7 @@ public class Controller {
     private Viewport viewport;
     private GeometryParser parser;
     private List<Triangle> geometry;
-    private KDTree dataStructure;
+    private SpatialDataStructure dataStructure;
     private Point2D pacman;
     private final List<Point2D> ghosts = new ArrayList<>();
     private final List<Tuple2<Segment, Color>> rays = new ArrayList<>();
@@ -122,9 +122,9 @@ public class Controller {
             geometry.forEach(t -> drawTriangle(gc, t));
 
             snapshot = canvas.snapshot(null, null);
-        } else {
-            gc.drawImage(snapshot, 0, 0);
         }
+
+        gc.drawImage(snapshot, 0, 0);
 
         drawRays(gc);
         drawPacman(gc);
@@ -167,8 +167,8 @@ public class Controller {
                 rightEye = rightEye.add(focus.subtract(rightEye).normalize());
                 leftEye = leftEye.add(focus.subtract(leftEye).normalize());
             }
-            gc.fillOval(leftEye.getX()-1, leftEye.getY()-1, 2, 2);
-            gc.fillOval(rightEye.getX()-1, rightEye.getY()-1, 2, 2);
+            gc.fillOval(leftEye.getX() - 1, leftEye.getY() - 1, 2, 2);
+            gc.fillOval(rightEye.getX() - 1, rightEye.getY() - 1, 2, 2);
         }
     }
 

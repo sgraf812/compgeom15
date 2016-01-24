@@ -16,7 +16,6 @@ import java.io.InputStream;
 import java.util.*;
 
 public class OSMGeometryParser implements GeometryParser {
-    private static final PolygonPoint DUMMY_POINT = new PolygonPoint(0, 0);
     private static final Logger LOG = LoggerFactory.getLogger(OSMGeometryParser.class);
     private final AutoPilot BUILDING_MULTIPOLYGON_PATH = new AutoPilot();
     private final AutoPilot BUILDING_WAY_PATH = new AutoPilot();
@@ -44,12 +43,12 @@ public class OSMGeometryParser implements GeometryParser {
             VTDGen vg = new VTDGen();
             vg.parseFile(osmfile, false);
             VTDNav vn = vg.getNav();
-            NODE_PATH.bind(vn); // This is important state for the later method calls!
-            NODE_REF_PATH.bind(vn);
-            BUILDING_WAY_PATH.bind(vn);
-            BUILDING_MULTIPOLYGON_PATH.bind(vn);
-            MEMBER_WAY_PATH.bind(vn);
-            WAY_PATH.bind(vn);
+            NODE_PATH.resetXPath(); NODE_PATH.bind(vn); // This is important state for the later method calls!
+            NODE_REF_PATH.resetXPath(); NODE_REF_PATH.bind(vn);
+            BUILDING_WAY_PATH.resetXPath(); BUILDING_WAY_PATH.bind(vn);
+            BUILDING_MULTIPOLYGON_PATH.resetXPath(); BUILDING_MULTIPOLYGON_PATH.bind(vn);
+            MEMBER_WAY_PATH.resetXPath(); MEMBER_WAY_PATH.bind(vn);
+            WAY_PATH.resetXPath(); WAY_PATH.bind(vn);
 
             // A hash from node ids to actual node positions
             Hashtable<Long, PolygonPoint> nodes = new Hashtable<>();
@@ -70,7 +69,11 @@ public class OSMGeometryParser implements GeometryParser {
             // This way, poly2tri's types will not leak out of this class and we operate
             // on triangles anyway.
             return buildPolygons(nodes, buildingWays, multipolygonWays, multipolygonWayRefs).flatMap(p -> {
-                Poly2Tri.triangulate(p);
+                try {
+                    Poly2Tri.triangulate(p);
+                } catch (RuntimeException e) {
+                    return Seq.empty();
+                }
                 return Seq.seq(p.getTriangles()).map(Triangle::fromDelaunayTriangle);
             }).toList();
         } catch (XPathEvalException | NavException e) {
@@ -104,15 +107,16 @@ public class OSMGeometryParser implements GeometryParser {
             long id = Long.parseLong(vn.toString(vn.getAttrVal("id")));
             // By checking that we already referenced the id we can reduce memory pressure
             if (nodes.containsKey(id)) {
-                nodes.put(id, new PolygonPoint(
+                nodes.get(id).set(
                         Double.parseDouble(vn.toString(vn.getAttrVal("lon")))*(1 << 10),
-                        Double.parseDouble(vn.toString(vn.getAttrVal("lat")))*(1 << 10)
-                ));
+                        Double.parseDouble(vn.toString(vn.getAttrVal("lat")))*(1 << 10),
+                        0
+                );
             }
         }
 
         // Make sure we have all referenced nodes extracted
-        assert !nodes.containsValue(DUMMY_POINT);
+        //assert !nodes.containsValue(DUMMY_POINT);
 
         vn.pop();
     }
@@ -159,7 +163,7 @@ public class OSMGeometryParser implements GeometryParser {
         for (int j = NODE_REF_PATH.evalXPath(); j != -1; j = NODE_REF_PATH.evalXPath()) {
             long ref = Long.parseLong(vn.toString(j + 1));
             refs.add(ref);
-            nodes.put(ref, DUMMY_POINT);
+            nodes.put(ref, new PolygonPoint(0, 0));
         }
         NODE_REF_PATH.resetXPath();
 
@@ -194,7 +198,7 @@ public class OSMGeometryParser implements GeometryParser {
         List<Tuple2<WayRole, Long>> refs = new ArrayList<>();
         for (int j = MEMBER_WAY_PATH.evalXPath(); j != -1; j = MEMBER_WAY_PATH.evalXPath()) {
             long ref = Long.parseLong(vn.toString(vn.getAttrVal("ref")));
-            String roleAsString = vn.toString(vn.getAttrVal("role"));
+            String roleAsString = vn.toString(vn.getAttrVal("role")).toLowerCase();
             WayRole role;
             switch (roleAsString) {
                 case "inner":
@@ -204,7 +208,7 @@ public class OSMGeometryParser implements GeometryParser {
                     role = WayRole.OUTER;
                     break;
                 default:
-                    throw new RuntimeException("Parsing the role blew up");
+                    continue;
             }
             refs.add(Tuple.tuple(role, ref));
             ways.put(ref, Collections.emptyList());

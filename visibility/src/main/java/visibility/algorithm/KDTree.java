@@ -42,11 +42,11 @@ public class KDTree implements SpatialDataStructure {
         return intersect(root, s);
     }
 
-    private static Point2D intersect(KDNode node, Segment s) {
+    private static Point2D intersect(KDNode node, Segment seg) {
         if (node.isLeaf()) {
             Intersection min = null;
             for (TriangleRef r : node.refs) {
-                Intersection i = s.intersectTriangle(r.triangle);
+                Intersection i = seg.intersectTriangle(r.triangle);
                 if (i != null) {
                     if (min == null || min.getDistance() > i.getDistance()) {
                         min = i;
@@ -55,7 +55,7 @@ public class KDTree implements SpatialDataStructure {
             }
             return min == null ? null : min.getIntersection();
         } else {
-            return split(s, node.splitAtX, node.splitValue).map((startOnLeftSide, start, end) -> {
+            return seg.splitAtXorY(node.splitAtX, node.splitValue).map((startOnLeftSide, start, end) -> {
                 if (startOnLeftSide) {
                     Point2D p = intersect(node.left, start);
                     return p != null || end == null ? p : intersect(node.right, end);
@@ -64,31 +64,6 @@ public class KDTree implements SpatialDataStructure {
                     return p != null || end == null ? p : intersect(node.left, end);
                 }
             });
-        }
-    }
-
-    public static Tuple3<Boolean, Segment, Segment> split(Segment seg, boolean splitAtX, double splitValue) {
-        Point2D s = seg.getStart();
-        Point2D e = seg.getEnd();
-        if (splitAtX) {
-            double t = (splitValue - s.getX()) / (e.getX() - s.getX());
-            double y = t * (e.getY() - s.getY()) + s.getY();
-            Point2D split = new Point2D(splitValue, y);
-            return splitAtPoint(seg, s.getX() < splitValue, t, split);
-        } else {
-            double t = (splitValue - s.getY()) / (e.getY() - s.getY());
-            double x = t * (e.getX() - s.getX()) + s.getX();
-            Point2D split = new Point2D(x, splitValue);
-            return splitAtPoint(seg, s.getY() < splitValue, t, split);
-        }
-    }
-
-    @NotNull
-    private static Tuple3<Boolean, Segment, Segment> splitAtPoint(Segment seg, boolean onLeftSide, double t, Point2D split) {
-        if (t > 1 || t < 0) {
-            return tuple(onLeftSide, seg, null);
-        } else {
-            return tuple(onLeftSide, new Segment(seg.getStart(), split), new Segment(split, seg.getEnd()));
         }
     }
 

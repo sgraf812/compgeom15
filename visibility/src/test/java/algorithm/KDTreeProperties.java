@@ -26,7 +26,6 @@ public class KDTreeProperties {
     @BeforeClass
     public static void setUp() {
         URL url = KDTreeProperties.class.getResource("/karlsruhe.osm");
-        System.out.println(url);
         GeometryParser parser = new OSMGeometryParser();
         List<Triangle> triangles = parser.parseFile(url.getFile());
         kdTree = KDTree.fromTriangles(triangles);
@@ -54,5 +53,10 @@ public class KDTreeProperties {
             assertEquals(expected.getX(), actual.getX(), 10e-7);
             assertEquals(expected.getY(), actual.getY(), 10e-7);
         }
+    }
+
+    @Property
+    public void tmp() {
+        //sameOutputAsNaiveImplementation(8607.5473466479, 50189.11584538501, 8617.94675234634, 50186.37127575283);
     }
 }

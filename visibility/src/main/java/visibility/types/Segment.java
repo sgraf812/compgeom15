@@ -3,21 +3,40 @@ package visibility.types;
 import javafx.geometry.Point2D;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jooq.lambda.tuple.Tuple3;
+
+import static org.jooq.lambda.tuple.Tuple.tuple;
 
 public class Segment {
 
     private final Point2D start;
     private final Point2D end;
+    private final double distanceSquared;
     private final Point2D dir;
     private final Point2D orth;
-    private final double distance;
+    private final double dxdy;
+    private final double dydx;
 
     public Segment(@NotNull Point2D start, @NotNull Point2D end) {
         this.start = start;
         this.end = end;
+        Point2D delta = start.subtract(end);
+        this.distanceSquared = delta.dotProduct(delta);
         this.dir = end.subtract(start).normalize();
         this.orth = new Point2D(-dir.getY(), dir.getX());
-        this.distance = start.distance(end);
+        this.dxdy = dir.getX()/dir.getY();
+        this.dydx = dir.getY()/dir.getX();
+    }
+
+    private Segment(Point2D start, Point2D end, Point2D dir, Point2D orth, double dxdy, double dydx) {
+        this.start = start;
+        this.end = end;
+        Point2D delta = start.subtract(end);
+        this.distanceSquared = delta.dotProduct(delta);
+        this.dir = dir;
+        this.orth = orth;
+        this.dxdy = dxdy;
+        this.dydx = dydx;
     }
 
     @NotNull
@@ -28,6 +47,32 @@ public class Segment {
     @NotNull
     public Point2D getEnd() {
         return end;
+    }
+
+    @NotNull
+    public Tuple3<Boolean, Segment, Segment> splitAtXorY(boolean splitAtX, double splitValue) {
+        Point2D s = this.start;
+        Point2D e = this.end;
+        if (splitAtX) {
+            double y = dydx * (splitValue - s.getX()) + s.getY();
+            Point2D split = new Point2D(splitValue, y);
+            return splitAtPoint(s.getX() < splitValue, e.getX() < splitValue, split);
+        } else {
+            double x = dxdy * (splitValue - s.getY()) + s.getX();
+            Point2D split = new Point2D(x, splitValue);
+            return splitAtPoint(s.getY() < splitValue, e.getY() < splitValue, split);
+        }
+    }
+
+    @NotNull
+    private Tuple3<Boolean, Segment, Segment> splitAtPoint(boolean startLeft, boolean endLeft, Point2D split) {
+        if (startLeft == endLeft) {
+            return tuple(startLeft, this, null);
+        } else {
+            Segment a = new Segment(this.start, split, this.dir, this.orth, this.dxdy, this.dydx);
+            Segment b = new Segment(split, this.end, this.dir, this.orth, this.dxdy, this.dydx);
+            return tuple(startLeft, a, b);
+        }
     }
 
     @Nullable
@@ -96,7 +141,7 @@ public class Segment {
         //
         final double s = (0 - oa) / (ob - oa);
         final double distance = da + s * (db - da);
-        if (distance >= 0 && distance < this.distance) {
+        if (distance >= 0 && distance*distance <= this.distanceSquared) {
             return new Intersection(this.start.add(this.dir.multiply(distance)), distance);
         } else {
             return null;
