@@ -2,6 +2,10 @@ apply from: 'https://dl.bintray.com/shemnon/javafx-gradle/8.1.1/javafx.plugin'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 
+javafx {
+    jvmArgs = ['-ea']
+}
+
 repositories {
     mavenCentral()
 }
@@ -11,5 +15,8 @@ dependencies {
     compile 'com.intellij:annotations:5.1'
     compile 'org.jooq:jool:0.9.9'
     compile 'org.orbisgis:poly2tri-core:0.1.2'
-    compile 'org.slf4j:slf4j-simple:1.7.13'
+    compile 'org.slf4j:slf4j-nop:1.7.13'
+    testCompile 'com.pholser:junit-quickcheck-core:0.6-alpha-3'
+    testCompile 'com.pholser:junit-quickcheck-generators:0.6-alpha-3'
+    testCompile 'junit:junit:4.12'
 }

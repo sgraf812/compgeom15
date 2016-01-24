@@ -12,6 +12,7 @@ import visibility.types.GeometryParser;
 import org.poly2tri.geometry.polygon.Polygon;
 import visibility.types.Triangle;
 
+import java.io.InputStream;
 import java.util.*;
 
 public class OSMGeometryParser implements GeometryParser {

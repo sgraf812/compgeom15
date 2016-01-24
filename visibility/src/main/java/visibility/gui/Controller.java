@@ -15,6 +15,7 @@ import javafx.scene.shape.ArcType;
 import javafx.stage.FileChooser;
 import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple2;
+import visibility.algorithm.KDTree;
 import visibility.algorithm.NaiveIntersection;
 import visibility.types.GeometryParser;
 import visibility.types.Segment;
@@ -32,7 +33,7 @@ public class Controller {
     private Viewport viewport;
     private GeometryParser parser;
     private List<Triangle> geometry;
-    private SpatialDataStructure dataStructure;
+    private KDTree dataStructure;
     private Point2D pacman;
     private final List<Point2D> ghosts = new ArrayList<>();
     private final List<Tuple2<Segment, Color>> rays = new ArrayList<>();
@@ -61,7 +62,7 @@ public class Controller {
         File selectedFile = chooser.showOpenDialog(canvas.getScene().getWindow());
         if (selectedFile != null) {
             geometry = parser.parseFile(selectedFile.getAbsolutePath());
-            dataStructure = NaiveIntersection.fromTriangles(geometry);
+            dataStructure = KDTree.fromTriangles(geometry);
         }
 
         snapshot = null;
@@ -128,6 +129,14 @@ public class Controller {
         drawRays(gc);
         drawPacman(gc);
         drawGhosts(gc);
+
+//        if (dataStructure == null) return;
+//        dataStructure.visitHalfPlanes((seg, depth) -> {
+//            gc.setStroke(Color.BLACK.interpolate(Color.LIGHTGRAY, depth/(double)10));
+//            Point2D s = viewport.viewportToScreen(canvas.getBoundsInLocal(), seg.getStart());
+//            Point2D e = viewport.viewportToScreen(canvas.getBoundsInLocal(), seg.getEnd());
+//            gc.strokeLine(s.getX(), s.getY(), e.getX(), e.getY());
+//        });
     }
 
     private void drawRays(GraphicsContext gc) {
