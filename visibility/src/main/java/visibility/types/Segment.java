@@ -40,17 +40,17 @@ public class Segment {
     }
 
     @NotNull
-    public Point2D getStart() {
+    public final Point2D getStart() {
         return start;
     }
 
     @NotNull
-    public Point2D getEnd() {
+    public final Point2D getEnd() {
         return end;
     }
 
     @NotNull
-    public Tuple3<Boolean, Segment, Segment> splitAtXorY(boolean splitAtX, double splitValue) {
+    public final Tuple3<Boolean, Segment, Segment> splitAtXorY(boolean splitAtX, double splitValue) {
         Point2D s = this.start;
         Point2D e = this.end;
         if (splitAtX) {
@@ -76,7 +76,7 @@ public class Segment {
     }
 
     @Nullable
-    public Intersection intersectTriangle(@NotNull Triangle t) {
+    public final Intersection intersectTriangle(@NotNull Triangle t) {
         // First we check that not all points of the triangle
         // lie on the same side of the segment
         final Point2D ra = t.a.subtract(start);
