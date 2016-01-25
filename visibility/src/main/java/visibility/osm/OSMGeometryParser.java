@@ -1,6 +1,7 @@
 package visibility.osm;
 
 import com.ximpleware.*;
+import org.apache.commons.io.IOUtils;
 import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple;
 import org.jooq.lambda.tuple.Tuple2;
@@ -12,7 +13,10 @@ import visibility.types.GeometryParser;
 import org.poly2tri.geometry.polygon.Polygon;
 import visibility.types.Triangle;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.*;
 
 public class OSMGeometryParser implements GeometryParser {
@@ -38,10 +42,11 @@ public class OSMGeometryParser implements GeometryParser {
     }
 
     @Override
-    public List<Triangle> parseFile(String osmfile) {
+    public List<Triangle> parseFile(InputStream is) {
         try {
             VTDGen vg = new VTDGen();
-            vg.parseFile(osmfile, false);
+            vg.setDoc(IOUtils.toByteArray(is));
+            vg.parse(false);
             VTDNav vn = vg.getNav();
             NODE_PATH.resetXPath(); NODE_PATH.bind(vn); // This is important state for the later method calls!
             NODE_REF_PATH.resetXPath(); NODE_REF_PATH.bind(vn);
@@ -76,7 +81,7 @@ public class OSMGeometryParser implements GeometryParser {
                 }
                 return Seq.seq(p.getTriangles()).map(Triangle::fromDelaunayTriangle);
             }).toList();
-        } catch (XPathEvalException | NavException e) {
+        } catch (XPathEvalException | NavException | IOException | ParseException e) {
             e.printStackTrace();
             return new ArrayList<>();
         }

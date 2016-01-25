@@ -9,10 +9,14 @@ import org.junit.runner.RunWith;
 import visibility.algorithm.KDTree;
 import visibility.algorithm.NaiveIntersection;
 import visibility.osm.OSMGeometryParser;
-import visibility.types.*;
+import visibility.types.GeometryParser;
+import visibility.types.Segment;
+import visibility.types.Triangle;
 
-import java.net.URL;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
+import java.util.zip.GZIPInputStream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -25,11 +29,14 @@ public class KDTreeProperties {
 
     @BeforeClass
     public static void setUp() {
-        URL url = KDTreeProperties.class.getResource("/karlsruhe.osm");
-        GeometryParser parser = new OSMGeometryParser();
-        List<Triangle> triangles = parser.parseFile(url.getFile());
-        kdTree = KDTree.fromTriangles(triangles);
-        naive = NaiveIntersection.fromTriangles(triangles);
+        try (InputStream file = new GZIPInputStream(KDTreeProperties.class.getResourceAsStream("/karlsruhe.osm.gz"))) {
+            GeometryParser parser = new OSMGeometryParser();
+            List<Triangle> triangles = parser.parseFile(file);
+            kdTree = KDTree.fromTriangles(triangles);
+            naive = NaiveIntersection.fromTriangles(triangles);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -53,10 +60,5 @@ public class KDTreeProperties {
             assertEquals(expected.getX(), actual.getX(), 10e-7);
             assertEquals(expected.getY(), actual.getY(), 10e-7);
         }
-    }
-
-    @Property
-    public void tmp() {
-        //sameOutputAsNaiveImplementation(8607.5473466479, 50189.11584538501, 8617.94675234634, 50186.37127575283);
     }
 }

@@ -23,6 +23,8 @@ import visibility.types.SpatialDataStructure;
 import visibility.types.Triangle;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -55,13 +57,13 @@ public class Controller {
         this.viewport = viewport;
     }
 
-    public void loadOSMData(ActionEvent actionEvent) {
+    public void loadOSMData(ActionEvent actionEvent) throws FileNotFoundException {
         final FileChooser chooser = new FileChooser();
         chooser.setTitle("Choose an OSM file");
         chooser.getExtensionFilters().add(new FileChooser.ExtensionFilter("OSM Files", "*.xml", "*.osm"));
         File selectedFile = chooser.showOpenDialog(canvas.getScene().getWindow());
         if (selectedFile != null) {
-            geometry = parser.parseFile(selectedFile.getAbsolutePath());
+            geometry = parser.parseFile(new FileInputStream(selectedFile));
             dataStructure = KDTree.fromTriangles(geometry);
         }
 
@@ -71,7 +73,7 @@ public class Controller {
     }
 
     public void clear(ActionEvent actionEvent) {
-        pacman = null;
+        System.out.println();
         ghosts.clear();
         rays.clear();
         draw(canvas.getGraphicsContext2D());
@@ -83,6 +85,7 @@ public class Controller {
         }
 
         Point2D p = getViewport().screenToViewport(canvas.getBoundsInLocal(), event.getX(), event.getY());
+        System.out.println(p);
         switch (event.getButton()) {
             case PRIMARY:
                 // Place Pacman

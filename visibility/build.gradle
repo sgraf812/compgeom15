@@ -1,4 +1,9 @@
+plugins {
+    id 'me.champeau.gradle.jmh' version '0.2.0'
+}
+
 apply from: 'https://dl.bintray.com/shemnon/javafx-gradle/8.1.1/javafx.plugin'
+apply plugin: 'me.champeau.gradle.jmh'
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 
@@ -6,11 +11,24 @@ javafx {
     jvmArgs = ['-ea']
 }
 
+test {
+    //jvmArgs = ['-XX:+PrintCompilation']
+}
+
+jmh {
+    fork = 0
+    warmupIterations = 2
+    iterations = 10
+    benchmarkMode = 'avgt'
+    timeUnit = 'ns'
+}
+
 repositories {
     mavenCentral()
 }
 
 dependencies {
+    compile 'commons-io:commons-io:2.4'
     compile 'com.ximpleware:vtd-xml:2.11'
     compile 'com.intellij:annotations:5.1'
     compile 'org.jooq:jool:0.9.9'
