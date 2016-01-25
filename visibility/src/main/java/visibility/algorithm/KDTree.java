@@ -1,11 +1,9 @@
 package visibility.algorithm;
 
 import javafx.geometry.Point2D;
-import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple2;
-import org.jooq.lambda.tuple.Tuple3;
 import visibility.types.*;
 
 import java.util.ArrayList;
@@ -19,13 +17,8 @@ import static org.jooq.lambda.tuple.Tuple.tuple;
 
 public class KDTree implements SpatialDataStructure {
 
-    private static final int TRIANGLES_PER_LEAF = 1;
-    private static final Comparator<TriangleRef> CMP_MIN_X = comparing(i -> i.bounds.min.getX());
-    private static final Comparator<TriangleRef> CMP_MIN_Y = comparing(i -> i.bounds.min.getY());
-    private static final Comparator<TriangleRef> CMP_MID_X = comparing(i -> i.bounds.mid.getX());
-    private static final Comparator<TriangleRef> CMP_MID_Y = comparing(i -> i.bounds.mid.getY());
-    private static final Comparator<TriangleRef> CMP_MAX_X = comparing(i -> i.bounds.max.getX());
-    private static final Comparator<TriangleRef> CMP_MAX_Y = comparing(i -> i.bounds.max.getY());
+    private static final double TRAVERSAL_COST = 1;
+    private static final double INTERSECTION_COST = 0.004; // median was 0.00347, avg 0.00375, so we should be good
 
     private final KDNode root;
 
@@ -55,7 +48,9 @@ public class KDTree implements SpatialDataStructure {
             }
             return min == null ? null : min.getIntersection();
         } else {
-            return seg.splitAtXorY(node.splitAtX, node.splitValue).map((startOnLeftSide, start, end) -> {
+            boolean splitAtX = node.splittingPlane.dimension == Dimension.X;
+            double splitValue = node.splittingPlane.splitValue;
+            return seg.splitAtXorY(splitAtX, splitValue).map((startOnLeftSide, start, end) -> {
                 if (startOnLeftSide) {
                     Point2D p = intersect(node.left, start);
                     return p != null || end == null ? p : intersect(node.right, end);
@@ -73,214 +68,210 @@ public class KDTree implements SpatialDataStructure {
                 .map(TriangleRef::new)
                 .toArray(TriangleRef[]::new);
 
-        assert TRIANGLES_PER_LEAF > 0;
-        return new KDTree(buildTree(refs));
-    }
-
-    private static KDNode buildTree(TriangleRef[] refs) {
-        // Uses the object median method
-
-        if (refs.length < 1) {
-            return null;
-        }
-
         final BoundingRectangle bounds = Seq.seq(Stream.of(refs))
                 .map(ref -> ref.bounds)
                 .foldLeft(BoundingRectangle.EMPTY, BoundingRectangle::merge);
 
-        if (refs.length <= TRIANGLES_PER_LEAF) {
-            return KDNode.leaf(bounds, refs);
-        }
-
-        final Point2D extent = bounds.extent();
-
-        // we split on refs[mid].bound.mid.
-        int mid = refs.length / 2;
-
-        boolean splitAtX = extent.getX() > extent.getY();
-        final Comparator<TriangleRef> minCmp = splitAtX ? CMP_MIN_X : CMP_MIN_Y;
-        final Comparator<TriangleRef> maxCmp = splitAtX ? CMP_MAX_X : CMP_MAX_Y;
-        final Comparator<TriangleRef> midCmp = splitAtX ? CMP_MID_X : CMP_MID_Y;
-
-        final TriangleRef split = ArrayUtils.quickSelect(refs, mid, midCmp);
-
-        assert split != null; // refs.length > 1 after all
-
-        final double splitValue = splitAtX ? split.bounds.mid.getX() : split.bounds.mid.getY();
-
-        // Now find the index range of the elements which intersect the split hyper plane
-        final TriangleRef splitDeg = new TriangleRef(null, new BoundingRectangle(split.bounds.mid, split.bounds.mid));
-        // bothStart will point to the first ref whose max point is greater than or equal to splitDeg
-        final int bothStart = partition(splitDeg, refs, 0, mid, maxCmp);
-        // bothEnd will point to the first ref whose min point is greater than or equal to splitDeg
-        final int bothEnd = partition(splitDeg, refs, mid, refs.length, minCmp);
-
-        // Triangles in [bothStart, bothEnd) belong to both nodes, but we should refit their bounds.
-        final TriangleRef[] leftRefit = new TriangleRef[bothEnd - bothStart];
-        final TriangleRef[] rightRefit = new TriangleRef[bothEnd - bothStart];
-        // first copy triangle refs which don't intersect the split
-        int leftEnd = 0;
-        int rightEnd = 0;
-        // Now fit the remaining triangle refs to their new bounds and skip empty bounds.
-        for (int i = bothStart; i < bothEnd; ++i) {
-            final TriangleRef t = refs[i];
-            final Tuple2<BoundingRectangle, BoundingRectangle> b = splitBoundingRectAt(splitAtX, splitValue, t);
-            if (!b.v1.isEmpty()) {
-                leftRefit[leftEnd++] = new TriangleRef(t.triangle, b.v1);
-            }
-            if (!b.v2.isEmpty()) {
-                rightRefit[rightEnd++] = new TriangleRef(t.triangle, b.v2);
-            }
-        }
-
-        final TriangleRef[] leftNodes = new TriangleRef[bothStart + leftEnd];
-        final TriangleRef[] rightNodes = new TriangleRef[rightEnd + refs.length - bothEnd];
-
-        System.arraycopy(refs, 0, leftNodes, 0, bothStart);
-        System.arraycopy(leftRefit, 0, leftNodes, bothStart, leftEnd);
-        System.arraycopy(rightRefit, 0, rightNodes, 0, rightEnd);
-        System.arraycopy(refs, bothEnd, rightNodes, rightEnd, refs.length - bothEnd);
-
-        for (TriangleRef r : leftNodes) {
-            if (splitAtX) {
-                assert r.bounds.max.getX() <= splitValue;
-            } else {
-                assert r.bounds.max.getY() <= splitValue;
-            }
-        }
-        for (TriangleRef r : rightNodes) {
-            if (splitAtX) {
-                assert r.bounds.min.getX() >= splitValue;
-            } else {
-                assert r.bounds.min.getY() >= splitValue;
-            }
-        }
-
-        assert leftNodes.length + rightNodes.length >= refs.length;
-
-        if (leftNodes.length == refs.length || rightNodes.length == refs.length) {
-            if (refs.length > 20) {
-                //System.out.println("refs " + refs.length + " l " + leftNodes.length + " r " + rightNodes.length);
-            }
-
-            // We can't do much better because of overlaps, I'm afraid.
-            // This is just a heuristic and may yield bad results on degenerate cases.
-            // Applying SAH might alleviate this.
-            return KDNode.leaf(bounds, refs);
-        }
-
-
-        KDNode left = buildTree(leftNodes);
-        KDNode right = buildTree(rightNodes);
-
-        if (splitAtX) {
-            assert left == null || left.bounds.max.getX() <= splitValue;
-            assert right == null || right.bounds.min.getX() >= splitValue;
-        } else {
-            assert left == null || left.bounds.max.getY() <= splitValue;
-            assert right == null || right.bounds.min.getY() >= splitValue;
-        }
-
-        if (left == null) {
-            return right;
-        } else if (right == null) {
-            return left;
-        } else {
-            return KDNode.inner(left.bounds.merge(right.bounds), left, right, splitAtX, splitValue);
-        }
+        return new KDTree(buildTreeSAH(refs, bounds, 0));
     }
 
-    private static Tuple2<BoundingRectangle, BoundingRectangle> splitBoundingRectAt(boolean atX, double v, TriangleRef t) {
-        // X coordinates of the BR are easy. Y is found through linear interpolation.
+    private static KDNode buildTreeSAH(TriangleRef[] refs, BoundingRectangle bounds, int depth) {
+        double minCost = Double.MAX_VALUE;
+        SplittingPlane minPlane = null;
+        SplittingPlaneAffiliation minPlaneAffiliation = null;
+        int minnleft = Integer.MAX_VALUE;
+        int minnright = Integer.MAX_VALUE;
 
-        final List<Point2D> left = new ArrayList<>(4);
-        final List<Point2D> right = new ArrayList<>(4);
-        assert t.triangle != null;
-        for (Point2D p : t.triangle) {
-            if ((atX && p.getX() < v) || (!atX && p.getY() < v)) {
-                left.add(p);
-            } else {
-                right.add(p);
-            }
-        }
+        List<TriangleEvent> events = new ArrayList<>(refs.length * 2);
 
-        int nleft = left.size();
-        int nright = right.size();
-        for (int i = 0; i < nleft; ++i) {
-            for (int j = 0; j < nright; ++j) {
-                Point2D p = left.get(i);
-                Point2D q = right.get(j);
-
-                // interpolate pq on x
-                if (atX) {
-                    double y = (v - p.getX()) / (q.getX() - p.getX()) * (q.getY() - p.getY()) + p.getY();
-                    left.add(new Point2D(v, y));
-                    right.add(new Point2D(v, y));
+        for (Dimension d : Dimension.values()) {
+            events.clear();
+            for (TriangleRef ref : refs) {
+                BoundingRectangle br = bounds.intersect(ref.bounds);
+                if (d.getValue(br.min) == d.getValue(br.max)) {
+                    // The triangle is planar after clipping it to the current Voxel
+                    events.add(new TriangleEvent(ref.triangle, new SplittingPlane(d.getValue(br.min), d), EventType.PLANAR));
                 } else {
-                    double x = (v - p.getY()) / (q.getY() - p.getY()) * (q.getX() - p.getX()) + p.getX();
-                    left.add(new Point2D(x, v));
-                    right.add(new Point2D(x, v));
+                    events.add(new TriangleEvent(ref.triangle, new SplittingPlane(d.getValue(br.min), d), EventType.START));
+                    events.add(new TriangleEvent(ref.triangle, new SplittingPlane(d.getValue(br.max), d), EventType.END));
                 }
             }
+
+            events.sort((a, b) -> {
+                int i1 = (int) Math.signum(a.p.splitValue - b.p.splitValue);
+                int i2 = (int) Math.signum(a.type.ord - b.type.ord);
+                return i1 != 0 ? i1 : i2;
+            }); // As per the order in the paper: Sort by splitValue, then by EventType: END < PLANAR < START
+
+            // Now we sweep over the event list and find the minimum cost splitting plane for this dimension.
+            int nleft = 0;
+            int nright = refs.length;
+
+            for (int i = 0; i < events.size(); ) {
+                TriangleEvent evt = events.get(i);
+                int pend = 0;
+                int pplanar = 0;
+                int pstart = 0;
+                final SplittingPlane p = evt.p;
+
+                // aggregate all p* for the same splitValue
+                while (evt.p.splitValue == p.splitValue) {
+                    switch (evt.type) {
+                        case END:
+                            pend++;
+                            break;
+                        case PLANAR:
+                            pplanar++;
+                            break;
+                        case START:
+                            pstart++;
+                            break;
+                    }
+
+                    if (++i < events.size()) {
+                        evt = events.get(i);
+                    } else {
+                        break;
+                    }
+                }
+
+                // Now we got all p* values for the current splitValue.
+                // Move plane *onto* p.
+                nright -= pplanar;
+                nright -= pend;
+
+                Tuple2<Double, SplittingPlaneAffiliation> result = surfaceAreaHeuristic(bounds, p, nleft, nright, pplanar);
+                if (result.v1 < minCost) {
+                    minCost = result.v1;
+                    minPlane = p;
+                    minPlaneAffiliation = result.v2;
+                    minnleft = nleft;
+                    minnright = nright;
+                }
+
+                // Move plane *beyond* p
+                nleft += pstart;
+                nleft += pplanar;
+
+                assert nleft + nright >= refs.length;
+            }
         }
 
-        BoundingRectangle v1 = BoundingRectangle.fromPoints(left).intersect(t.bounds);
-        BoundingRectangle v2 = BoundingRectangle.fromPoints(right).intersect(t.bounds);
-        if (atX) {
-            assert v1.max.getX() <= v;
-            assert v2.min.getX() >= v;
-        } else {
-            assert v1.max.getY() <= v;
-            assert v2.min.getY() >= v;
+        if (INTERSECTION_COST * refs.length < minCost) {
+            return KDNode.leaf(bounds, refs);
         }
 
-        return tuple(
-                v1,
-                v2
-        );
+        assert refs.length > 1;
+
+        // We found the best splitting plane and the associated costs, all that is left to do is split.
+        TriangleRef[] left = new TriangleRef[minnleft];
+        TriangleRef[] right = new TriangleRef[minnright];
+        int l = 0;
+        int r = 0;
+        BoundingRectangle lv = BoundingRectangle.EMPTY;
+        BoundingRectangle rv = BoundingRectangle.EMPTY;
+        for (TriangleRef ref : refs) {
+            if (minPlane.dimension.getValue(ref.bounds.extent()) == 0) {
+                if (minPlaneAffiliation == SplittingPlaneAffiliation.RIGHT) {
+                    right[r++] = ref;
+                    rv = rv.merge(ref.bounds);
+                } else {
+                    left[l++] = ref;
+                    lv = lv.merge(ref.bounds);
+                }
+            } else {
+                if (minPlane.dimension.getValue(ref.bounds.min) < minPlane.splitValue) {
+                    left[l++] = ref;
+                    lv = lv.merge(ref.bounds);
+                }
+                if (minPlane.dimension.getValue(ref.bounds.max) > minPlane.splitValue) {
+                    right[r++] = ref;
+                    rv = rv.merge(ref.bounds);
+                }
+                // In the remaining case where min == max == splitValue, the triangle
+                // is planar (extent == 0) and will we dealt with in the other if branch
+                // according to minPlaneAffiliation.
+            }
+        }
+
+        lv = splitBoundingRect(lv, minPlane).v1; // I hope this is accurate enough. don't want clip all triangles
+        rv = splitBoundingRect(rv, minPlane).v2;
+
+        assert l == left.length;
+        assert r == right.length;
+
+        try {
+
+            KDNode leftChild = buildTreeSAH(left, lv, depth + 1);
+            KDNode rightChild = buildTreeSAH(right, rv, depth + 1);
+
+            assert leftChild != null;
+            assert rightChild != null;
+
+            return KDNode.inner(bounds, leftChild, rightChild, minPlane);
+
+        } catch (StackOverflowError e) {
+            // In case we mess up and recurse endlessly.
+            e.printStackTrace();
+            return KDNode.leaf(bounds, refs);
+        }
     }
 
-    private static int partition(TriangleRef pivot, TriangleRef[] refs, int start, int mid, Comparator<TriangleRef> comparator) {
-        int left = start;
-        int right = mid - 1;
+    private static Tuple2<Double, SplittingPlaneAffiliation> surfaceAreaHeuristic(BoundingRectangle V, SplittingPlane p, int nleft, int nright, int nplanar) {
+        Tuple2<BoundingRectangle, BoundingRectangle> split = splitBoundingRect(V, p);
 
-        while (true) {
-            while (left < right && comparator.compare(refs[left], pivot) < 0) {
-                left++;
-            }
-            // left is the index of a candidate which is greater than or equal to the pivot.
-            // Or left == right
+        final double pleft = surfaceArea(split.v1) / surfaceArea(V);
+        final double pright = surfaceArea(split.v2) / surfaceArea(V);
 
-            while (left < right && comparator.compare(refs[right], pivot) >= 0) {
-                right--;
-            }
-            // right is the index of a candidate which is smaller than the pivot.
-            // Or left == right
+        final double costWithLeftAffiliation = calculateCost(pleft, pright, nleft + nplanar, nright);
+        final double costWithRightAffiliation = calculateCost(pleft, pright, nleft, nright + nplanar);
 
-            if (left < right) {
-                ArrayUtils.swap(refs, left, right);
-            } else {
-                break;
-            }
+        return costWithLeftAffiliation < costWithRightAffiliation
+                ? tuple(costWithLeftAffiliation, SplittingPlaneAffiliation.LEFT)
+                : tuple(costWithRightAffiliation, SplittingPlaneAffiliation.RIGHT);
+    }
+
+    private static double calculateCost(double pleft, double pright, int nleft, int nright) {
+        final double lambda = nleft == 0 || nright == 0 ? 0.8 : 1.0;
+        // lambda doesn't seem to work for us...
+        return (TRAVERSAL_COST + INTERSECTION_COST * (pleft * nleft + pright * nright));
+    }
+
+    private static double surfaceArea(BoundingRectangle v) {
+        Point2D e = v.extent();
+        return 2 * (e.getX() + e.getY());
+    }
+
+    private static Tuple2<BoundingRectangle, BoundingRectangle> splitBoundingRect(BoundingRectangle bounds, SplittingPlane p) {
+        switch (p.dimension) {
+            case X:
+                return tuple(
+                        new BoundingRectangle(
+                                bounds.min,
+                                new Point2D(Math.min(bounds.max.getX(), p.splitValue), bounds.max.getY())),
+                        new BoundingRectangle(
+                                new Point2D(Math.max(bounds.min.getX(), p.splitValue), bounds.min.getY()),
+                                bounds.max)
+                );
+            case Y:
+                return tuple(
+                        new BoundingRectangle(
+                                bounds.min,
+                                new Point2D(bounds.max.getX(), Math.min(bounds.max.getY(), p.splitValue))),
+                        new BoundingRectangle(
+                                new Point2D(bounds.min.getX(), Math.max(bounds.min.getY(), p.splitValue)),
+                                bounds.max)
+                );
         }
-
-        assert left == right;
-
-        while (right >= 0 && comparator.compare(refs[right], pivot) >= 0) {
-            right--;
-        }
-
-        right++;
-        // right now points to the first element that is greater than or equal to pivot.
-
-        return right;
+        assert false;
+        return tuple(null, null);
     }
 
 
     private static class TriangleRef {
         public final Triangle triangle;
         public final BoundingRectangle bounds;
-        boolean alreadyChecked; // This is for a mailboxing mechanism
+        //boolean alreadyChecked; // This is for a mailboxing mechanism
 
         public TriangleRef(Triangle triangle) {
             this(triangle, BoundingRectangle.fromPoints(triangle));
@@ -290,7 +281,6 @@ public class KDTree implements SpatialDataStructure {
         public TriangleRef(Triangle triangle, BoundingRectangle bounds) {
             this.triangle = triangle;
             this.bounds = bounds;
-            this.alreadyChecked = false;
         }
     }
 
@@ -299,24 +289,22 @@ public class KDTree implements SpatialDataStructure {
         public final KDNode right;
         public final KDNode left;
         public final TriangleRef[] refs;
-        public final boolean splitAtX;
-        public final double splitValue;
+        public final SplittingPlane splittingPlane;
 
-        private KDNode(BoundingRectangle bounds, KDNode left, KDNode right, TriangleRef[] refs, boolean splitAtX, double splitValue) {
+        private KDNode(BoundingRectangle bounds, KDNode left, KDNode right, TriangleRef[] refs, SplittingPlane splittingPlane) {
             this.bounds = bounds;
             this.right = right;
             this.left = left;
             this.refs = refs;
-            this.splitAtX = splitAtX;
-            this.splitValue = splitValue;
+            this.splittingPlane = splittingPlane;
         }
 
         public static KDNode leaf(BoundingRectangle bounds, TriangleRef[] refs) {
-            return new KDNode(bounds, null, null, refs, false, 0.0);
+            return new KDNode(bounds, null, null, refs, null);
         }
 
-        public static KDNode inner(BoundingRectangle bounds, KDNode left, KDNode right, boolean splitAtX, double splitValue) {
-            return new KDNode(bounds, left, right, null, splitAtX, splitValue);
+        public static KDNode inner(BoundingRectangle bounds, KDNode left, KDNode right, SplittingPlane p) {
+            return new KDNode(bounds, left, right, null, p);
         }
 
         public boolean isLeaf() {
@@ -338,19 +326,74 @@ public class KDTree implements SpatialDataStructure {
         if (node.isLeaf()) { //|| depth > 8) {
             return;
         } else {
-            if (node.splitAtX) {
-                Point2D start = new Point2D(node.splitValue, node.bounds.min.getY());
-                Point2D end = new Point2D(node.splitValue, node.bounds.max.getY());
+            if (node.splittingPlane.dimension == Dimension.X) {
+                Point2D start = new Point2D(node.splittingPlane.splitValue, node.bounds.min.getY());
+                Point2D end = new Point2D(node.splittingPlane.splitValue, node.bounds.max.getY());
                 visitor.accept(new Segment(start, end), depth);
-                visitHalfPlanes(visitor, node.left, depth+1);
+                visitHalfPlanes(visitor, node.left, depth + 1);
                 //visitHalfPlanes(visitor, node.right, depth+1);
             } else {
-                Point2D start = new Point2D(node.bounds.min.getX(), node.splitValue);
-                Point2D end = new Point2D(node.bounds.max.getX(), node.splitValue);
+                Point2D start = new Point2D(node.bounds.min.getX(), node.splittingPlane.splitValue);
+                Point2D end = new Point2D(node.bounds.max.getX(), node.splittingPlane.splitValue);
                 visitor.accept(new Segment(start, end), depth);
-                visitHalfPlanes(visitor, node.left, depth+1);
+                visitHalfPlanes(visitor, node.left, depth + 1);
                 //visitHalfPlanes(visitor, node.right, depth+1);
             }
         }
+    }
+
+    private static class SplittingPlane {
+        public final double splitValue;
+        public final Dimension dimension;
+
+        private SplittingPlane(double splitValue, Dimension dimension) {
+            this.splitValue = splitValue;
+            this.dimension = dimension;
+        }
+    }
+
+    private static class TriangleEvent {
+        public final Triangle t;
+        public final SplittingPlane p;
+        public final EventType type;
+
+        TriangleEvent(Triangle t, SplittingPlane p, EventType type) {
+            this.t = t;
+            this.p = p;
+            this.type = type;
+        }
+    }
+
+    private enum EventType {
+        END(0),
+        PLANAR(1),
+        START(2);
+
+        private final int ord;
+
+        EventType(int i) {
+            this.ord = i;
+        }
+    }
+
+    private enum Dimension {
+        X,
+        Y;
+
+        public double getValue(Point2D p) {
+            switch (this) {
+                case X:
+                    return p.getX();
+                case Y:
+                    return p.getY();
+            }
+            assert false;
+            return 0;
+        }
+    }
+
+    private enum SplittingPlaneAffiliation {
+        LEFT,
+        RIGHT
     }
 }

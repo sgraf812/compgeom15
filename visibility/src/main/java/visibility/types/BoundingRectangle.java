@@ -9,6 +9,10 @@ public class BoundingRectangle {
             new BoundingRectangle(
                     new Point2D(Double.MAX_VALUE, Double.MAX_VALUE),
                     new Point2D(-Double.MAX_VALUE, -Double.MAX_VALUE));
+    public static final BoundingRectangle EVERYTHING =
+            new BoundingRectangle(
+                    new Point2D(-Double.MAX_VALUE, -Double.MAX_VALUE),
+                    new Point2D(Double.MAX_VALUE, Double.MAX_VALUE));
     public final Point2D min;
     public final Point2D max;
     public final Point2D mid;
