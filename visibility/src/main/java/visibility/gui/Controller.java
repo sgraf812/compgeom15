@@ -65,15 +65,14 @@ public class Controller {
         if (selectedFile != null) {
             geometry = parser.parseFile(new FileInputStream(selectedFile));
             dataStructure = KDTree.fromTriangles(geometry);
+            snapshot = null;
+            setViewport(Viewport.fromTriangles(geometry));
+            pacman = null;
+            clear(null);
         }
-
-        snapshot = null;
-        setViewport(Viewport.fromTriangles(geometry));
-        draw(canvas.getGraphicsContext2D());
     }
 
     public void clear(ActionEvent actionEvent) {
-        System.out.println();
         ghosts.clear();
         rays.clear();
         draw(canvas.getGraphicsContext2D());
@@ -85,7 +84,6 @@ public class Controller {
         }
 
         Point2D p = getViewport().screenToViewport(canvas.getBoundsInLocal(), event.getX(), event.getY());
-        System.out.println(p);
         switch (event.getButton()) {
             case PRIMARY:
                 // Place Pacman
