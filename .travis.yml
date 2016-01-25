@@ -6,4 +6,4 @@ script:
   - chmod +x ./gradlew
   - ./gradlew test
   - ./gradlew jmh
-  - cat build/reports/human.txt
+  - cat build/reports/jmh/human.txt
