@@ -21,6 +21,7 @@ jmh {
     iterations = 10
     benchmarkMode = 'avgt'
     timeUnit = 'ns'
+    include=''
 }
 
 repositories {

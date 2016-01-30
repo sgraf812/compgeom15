@@ -75,6 +75,7 @@ public class Controller {
     public void clear(ActionEvent actionEvent) {
         ghosts.clear();
         rays.clear();
+        snapshot = null;
         draw(canvas.getGraphicsContext2D());
     }
 
