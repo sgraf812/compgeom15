@@ -246,7 +246,7 @@ public class OSMGeometryParser implements GeometryParser {
                 }
                 holes.forEach(outer::addHole);
             } catch (Exception ex) {
-                System.out.println("Failed to build a certain multipolygon");
+                //System.out.println("Failed to build a certain multipolygon");
             }
             return outer;
         }).filter(p -> p != null);

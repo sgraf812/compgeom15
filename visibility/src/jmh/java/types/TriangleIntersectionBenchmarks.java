@@ -8,7 +8,6 @@ import visibility.types.Triangle;
 
 import java.util.PrimitiveIterator;
 import java.util.Random;
-import java.util.concurrent.TimeUnit;
 
 public class TriangleIntersectionBenchmarks {
     private static final Segment HIT = new Segment(new Point2D(0, 0), new Point2D(5, 5));
@@ -30,7 +29,7 @@ public class TriangleIntersectionBenchmarks {
     }
 
     @State(Scope.Thread)
-    public static class RandomTriangles {
+    public static class RandomSegments {
         private PrimitiveIterator.OfDouble d;
         public Segment seg;
 
@@ -48,7 +47,7 @@ public class TriangleIntersectionBenchmarks {
     }
 
     @Benchmark
-    public Intersection intersectTrianglePseudoRandomly(RandomTriangles state) {
+    public Intersection intersectTrianglePseudoRandomly(RandomSegments state) {
         return state.seg.intersectTriangle(TRIANGLE);
     }
 }

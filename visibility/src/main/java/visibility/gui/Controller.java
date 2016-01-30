@@ -1,11 +1,9 @@
 package visibility.gui;
 
 import javafx.event.ActionEvent;
-import javafx.event.Event;
 import javafx.geometry.Bounds;
 import javafx.geometry.Point2D;
 import javafx.geometry.Rectangle2D;
-import javafx.scene.SnapshotParameters;
 import javafx.scene.canvas.Canvas;
 import javafx.scene.canvas.GraphicsContext;
 import javafx.scene.image.WritableImage;
@@ -16,7 +14,6 @@ import javafx.stage.FileChooser;
 import org.jooq.lambda.Seq;
 import org.jooq.lambda.tuple.Tuple2;
 import visibility.algorithm.KDTree;
-import visibility.algorithm.NaiveIntersection;
 import visibility.types.GeometryParser;
 import visibility.types.Segment;
 import visibility.types.SpatialDataStructure;
@@ -26,6 +23,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.jooq.lambda.tuple.Tuple.tuple;
@@ -34,7 +32,7 @@ public class Controller {
     public Canvas canvas;
     private Viewport viewport;
     private GeometryParser parser;
-    private List<Triangle> geometry;
+    private List<Triangle> geometry = Collections.emptyList();
     private SpatialDataStructure dataStructure;
     private Point2D pacman;
     private final List<Point2D> ghosts = new ArrayList<>();
