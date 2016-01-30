@@ -85,7 +85,6 @@ public class KDTree implements SpatialDataStructure {
         List<TriangleEvent> events = new ArrayList<>(refs.length * 2);
 
         for (Dimension d : Dimension.values()) {
-            events.clear();
             for (TriangleRef ref : refs) {
                 BoundingRectangle br = bounds.intersect(ref.bounds);
                 if (d.getValue(br.min) == d.getValue(br.max)) {
@@ -147,6 +146,14 @@ public class KDTree implements SpatialDataStructure {
                     minPlaneAffiliation = result.v2;
                     minnleft = nleft;
                     minnright = nright;
+                    switch (minPlaneAffiliation) {
+                        case LEFT:
+                            minnleft += pplanar;
+                            break;
+                        case RIGHT:
+                            minnright += pplanar;
+                            break;
+                    }
                 }
 
                 // Move plane *beyond* p
@@ -154,7 +161,10 @@ public class KDTree implements SpatialDataStructure {
                 nleft += pplanar;
 
                 assert nleft + nright >= refs.length;
+                assert minnleft + minnright >= refs.length;
             }
+
+            events.clear();
         }
 
         if (INTERSECTION_COST * refs.length < minCost) {
@@ -171,7 +181,8 @@ public class KDTree implements SpatialDataStructure {
         BoundingRectangle lv = BoundingRectangle.EMPTY;
         BoundingRectangle rv = BoundingRectangle.EMPTY;
         for (TriangleRef ref : refs) {
-            if (minPlane.dimension.getValue(ref.bounds.extent()) == 0) {
+            if (minPlane.dimension.getValue(ref.bounds.min) == minPlane.splitValue
+                    && minPlane.dimension.getValue(ref.bounds.max) == minPlane.splitValue) {
                 if (minPlaneAffiliation == SplittingPlaneAffiliation.RIGHT) {
                     right[r++] = ref;
                     rv = rv.merge(ref.bounds);
