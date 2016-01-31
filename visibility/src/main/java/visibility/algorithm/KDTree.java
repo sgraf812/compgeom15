@@ -221,9 +221,9 @@ public class KDTree implements SpatialDataStructure {
 
             return KDNode.inner(bounds, leftChild, rightChild, minPlane);
 
-        } catch (StackOverflowError e) {
+        } catch (StackOverflowError ignored) {
             // In case we mess up and recurse endlessly.
-            e.printStackTrace();
+            System.out.println("Building up the KDTree blew up the stack");
             return KDNode.leaf(bounds, refs);
         }
     }
