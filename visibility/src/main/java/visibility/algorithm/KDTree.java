@@ -167,7 +167,7 @@ public class KDTree implements SpatialDataStructure {
             events.clear();
         }
 
-        if (INTERSECTION_COST * refs.length < minCost || depth > 16 || lastCost <= minCost) {
+        if (INTERSECTION_COST * refs.length < minCost || depth > 30 || lastCost <= minCost) {
             return KDNode.leaf(bounds, refs);
         }
 
@@ -205,8 +205,8 @@ public class KDTree implements SpatialDataStructure {
             }
         }
 
-        lv = splitBoundingRect(lv, minPlane).v1; // I hope this is accurate enough. don't want clip all triangles
-        rv = splitBoundingRect(rv, minPlane).v2;
+        lv = splitBoundingRect(lv.intersect(bounds), minPlane).v1; // I hope this is accurate enough. don't want clip all triangles
+        rv = splitBoundingRect(rv.intersect(bounds), minPlane).v2;
 
         assert l == left.length;
         assert r == right.length;
