@@ -72,10 +72,10 @@ public class KDTree implements SpatialDataStructure {
                 .map(ref -> ref.bounds)
                 .foldLeft(BoundingRectangle.EMPTY, BoundingRectangle::merge);
 
-        return new KDTree(buildTreeSAH(refs, bounds, 0));
+        return new KDTree(buildTreeSAH(refs, bounds, 0, Double.MAX_VALUE));
     }
 
-    private static KDNode buildTreeSAH(TriangleRef[] refs, BoundingRectangle bounds, int depth) {
+    private static KDNode buildTreeSAH(TriangleRef[] refs, BoundingRectangle bounds, int depth, double lastCost) {
         double minCost = Double.MAX_VALUE;
         SplittingPlane minPlane = null;
         SplittingPlaneAffiliation minPlaneAffiliation = null;
@@ -167,7 +167,7 @@ public class KDTree implements SpatialDataStructure {
             events.clear();
         }
 
-        if (INTERSECTION_COST * refs.length < minCost) {
+        if (INTERSECTION_COST * refs.length < minCost || depth > 16 || lastCost <= minCost) {
             return KDNode.leaf(bounds, refs);
         }
 
@@ -213,8 +213,8 @@ public class KDTree implements SpatialDataStructure {
 
         try {
 
-            KDNode leftChild = buildTreeSAH(left, lv, depth + 1);
-            KDNode rightChild = buildTreeSAH(right, rv, depth + 1);
+            KDNode leftChild = buildTreeSAH(left, lv, depth + 1, minCost);
+            KDNode rightChild = buildTreeSAH(right, rv, depth + 1, minCost);
 
             assert leftChild != null;
             assert rightChild != null;

@@ -34,6 +34,7 @@ public class DataStructureBenchmarks {
         public Segment seg;
 
         public MapState(String name) {
+            System.gc();
             try (InputStream file = new GZIPInputStream(this.getClass().getResourceAsStream(name))) {
                 List<Triangle> triangles = new OSMGeometryParser().parseFile(file);
                 this.kdTree = KDTree.fromTriangles(triangles);
