@@ -24,8 +24,8 @@ public class Segment {
         this.distanceSquared = delta.dotProduct(delta);
         this.dir = end.subtract(start).normalize();
         this.orth = new Point2D(-dir.getY(), dir.getX());
-        this.dxdy = dir.getX()/Math.max(dir.getY(), Double.MIN_VALUE);
-        this.dydx = dir.getY()/Math.max(dir.getX(), Double.MIN_VALUE);
+        this.dxdy = dir.getX()/(dir.getY() == 0 ? Double.MIN_VALUE : dir.getY());
+        this.dydx = dir.getY()/(dir.getX() == 0 ? Double.MIN_VALUE : dir.getX());
     }
 
     private Segment(Point2D start, Point2D end, Point2D dir, Point2D orth, double dxdy, double dydx) {
