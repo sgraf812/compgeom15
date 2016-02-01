@@ -1,6 +1,7 @@
 package visibility.types;
 
 import javafx.geometry.Point2D;
+import javafx.geometry.Point3D;
 
 
 import java.util.Iterator;
@@ -51,23 +52,18 @@ public class Triangle implements Iterable<Point2D> {
     }
 
     public boolean isInside(Point2D p) {
-        double vx2 = p.getX() - a.getX();
-        double vy2 = p.getY() - a.getY();
-        double vx1 = this.b.getX() - this.a.getX();
-        double vy1 = this.b.getY() - this.a.getY();
-        double vx0 = this.c.getX() - this.a.getX();
-        double vy0 = this.c.getY() - this.a.getY();
+        Point3D b = barycentricCoordinates(p);
+        return b.getX() >= 0 && b.getY() >= 0 && b.getZ() >= 0;
+    }
 
-        double dot00 = vx0 * vx0 + vy0 * vy0;
-        double dot01 = vx0 * vx1 + vy0 * vy1;
-        double dot02 = vx0 * vx2 + vy0 * vy2;
-        double dot11 = vx1 * vx1 + vy1 * vy1;
-        double dot12 = vx1 * vx2 + vy1 * vy2;
-        double invDenom = (double) (1.0 / (dot00 * dot11 - dot01 * dot01));
-        double u = (dot11 * dot02 - dot01 * dot12) * invDenom;
-        double v = (dot00 * dot12 - dot01 * dot02) * invDenom;
-
-        return ((u >= 0) && (v >= 0) && (u + v <= 1));
+    public Point3D barycentricCoordinates(Point2D p) {
+        Point2D v0 = b.subtract(a);
+        Point2D v1 = c.subtract(a);
+        Point2D v2 = p.subtract(a);
+        double denom = v0.getX() * v1.getY() - v1.getX() * v0.getY();
+        double u = (v2.getX() * v1.getY() - v1.getX() * v2.getY()) / denom;
+        double v = (v0.getX() * v2.getY() - v2.getX() * v0.getY()) / denom;
+        return new Point3D(u, v, 1.0-u-v);
     }
 
     public boolean isEndPointinTriangle(Point2D testpoint) {

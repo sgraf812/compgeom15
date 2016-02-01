@@ -211,21 +211,10 @@ public class KDTree implements SpatialDataStructure {
         assert l == left.length;
         assert r == right.length;
 
-        try {
+        KDNode leftChild = buildTreeSAH(left, lv, depth + 1, minCost);
+        KDNode rightChild = buildTreeSAH(right, rv, depth + 1, minCost);
 
-            KDNode leftChild = buildTreeSAH(left, lv, depth + 1, minCost);
-            KDNode rightChild = buildTreeSAH(right, rv, depth + 1, minCost);
-
-            assert leftChild != null;
-            assert rightChild != null;
-
-            return KDNode.inner(bounds, leftChild, rightChild, minPlane);
-
-        } catch (StackOverflowError ignored) {
-            // In case we mess up and recurse endlessly.
-            System.out.println("Building up the KDTree blew up the stack");
-            return KDNode.leaf(bounds, refs);
-        }
+        return KDNode.inner(bounds, leftChild, rightChild, minPlane);
     }
 
     private static Tuple2<Double, SplittingPlaneAffiliation> surfaceAreaHeuristic(BoundingRectangle V, SplittingPlane p, int nleft, int nright, int nplanar) {

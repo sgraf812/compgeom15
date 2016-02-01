@@ -100,6 +100,11 @@ public class Segment {
 
         // There is some intersection, signs didn't match.
 
+        if (t.isInside(start)) {
+            // This should be pretty clear.
+            return new Intersection(start, 0);
+        }
+
         final double da = ra.dotProduct(this.dir);
         final double db = rb.dotProduct(this.dir);
         final double dc = rc.dotProduct(this.dir);
@@ -127,20 +132,20 @@ public class Segment {
         // The code assumes that ab and bc are the intersected edges.
         // *b will the point shared by both intersected edges.
         // Calling code will permute the parameters appropriately to reduce duplication.
-        if (da < dc) {
-            // The intersection with ab is nearest
-            return triangleEdgeIntersected(oa, da, ob, db);
-        } else {
-            // The intersection with bc is nearest
-            return triangleEdgeIntersected(ob, db, oc, dc);
-        }
+        double ab = distanceOfIntersection(oa, da, ob, db);
+        double bc = distanceOfIntersection(ob, db, oc, dc);
+
+        return ab < bc ? intersectionAtDistance(ab) : intersectionAtDistance(bc);
     }
 
-    private Intersection triangleEdgeIntersected(double oa, double da, double ob, double db) {
+    private static double distanceOfIntersection(double oa, double da, double ob, double db) {
         // Interpolate based on the orthogonal projection
         //
         final double s = (0 - oa) / (ob - oa);
-        final double distance = da + s * (db - da);
+        return da + s * (db - da);
+    }
+
+    private Intersection intersectionAtDistance(double distance) {
         if (distance >= 0 && distance*distance <= this.distanceSquared) {
             return new Intersection(this.start.add(this.dir.multiply(distance)), distance);
         } else {
