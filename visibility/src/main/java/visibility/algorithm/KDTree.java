@@ -17,8 +17,13 @@ import static org.jooq.lambda.tuple.Tuple.tuple;
 
 public class KDTree implements SpatialDataStructure {
 
-    private static final double TRAVERSAL_COST = 1;
-    private static final double INTERSECTION_COST = 0.004; // median was 0.00347, avg 0.00375, so we should be good
+    private static final double TRAVERSAL_COST = 4;
+    private static final double INTERSECTION_COST = 1;
+
+//    private static long interTime = 0;
+//    private static int inters = 0;
+//    private static long recursionTime = 0;
+//    private static int recursion = 0;
 
     private final KDNode root;
 
@@ -32,13 +37,24 @@ public class KDTree implements SpatialDataStructure {
             return null;
         }
 
-        return intersect(root, s);
+        //recursion = 0; recursionTime = 0;
+        //inters = 0; interTime = 0;
+        //long begin = System.nanoTime();
+        Point2D intersect = intersect(root, s);
+        //recursionTime = System.nanoTime() - begin;
+        //recursionTime -= interTime;
+        //interTime /= inters;
+        //recursionTime /= recursion;
+        //System.out.println(recursionTime/(double)interTime);
+        return intersect;
     }
 
     private static Point2D intersect(KDNode node, Segment seg) {
         if (node.isLeaf()) {
+            //long begin = System.nanoTime();
             Intersection min = null;
             for (TriangleRef r : node.refs) {
+                //inters++;
                 Intersection i = seg.intersectTriangle(r.triangle);
                 if (i != null) {
                     if (min == null || min.getDistance() > i.getDistance()) {
@@ -46,8 +62,10 @@ public class KDTree implements SpatialDataStructure {
                     }
                 }
             }
+            //interTime += System.nanoTime()-begin;
             return min == null ? null : min.getIntersection();
         } else {
+            //recursion++;
             boolean splitAtX = node.splittingPlane.dimension == Dimension.X;
             double splitValue = node.splittingPlane.splitValue;
             return seg.splitAtXorY(splitAtX, splitValue).map((startOnLeftSide, start, end) -> {

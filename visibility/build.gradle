@@ -8,7 +8,7 @@ apply plugin: 'idea'
 apply plugin: 'eclipse'
 
 javafx {
-    jvmArgs = ['-ea']
+    jvmArgs = ['-ea', '-Xmx4g', '-XshowSettings:vm']
 }
 
 test {
@@ -22,6 +22,7 @@ jmh {
     benchmarkMode = 'avgt'
     timeUnit = 'ns'
     include=''
+    jvmArgs = ['-Xmx4g'] // set max heap size to 4 gigs
 }
 
 repositories {
