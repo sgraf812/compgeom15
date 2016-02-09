@@ -6,6 +6,6 @@ env:
 script:
   - cd visibility/
   - chmod +x ./gradlew
-  - ./gradlew test
+  - ./gradlew test --stacktrace
  # - ./gradlew jmh # The CI will run out of memory when performing the benchmarks (peak ~4GB)
  # - cat build/reports/jmh/human.txt
